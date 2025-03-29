@@ -28,7 +28,7 @@ public class FastBreak extends Check implements BlockBreakCheck {
 
     // For some reason these states flag and I don't know why.
     // Better to just exempt to not annoy legit players.
-    private static final Set<StateType> EXEMPT_STATES = Collections.singleton(StateTypes.TRIAL_SPAWNER);
+    private static final Set<StateType> EXEMPT_STATES = Collections.emptySet();
 
     public FastBreak(GrimPlayer playerData) {
         super(playerData);

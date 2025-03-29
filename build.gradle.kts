@@ -217,6 +217,7 @@ tasks.shadowJar {
         if (shadePE) {
             relocate("io.github.retrooper.packetevents", "ac.grim.grimac.shaded.io.github.retrooper.packetevents")
             relocate("com.github.retrooper.packetevents", "ac.grim.grimac.shaded.com.github.retrooper.packetevents")
+            exclude("assets/mappings") // Exclude new PE mappings folder
             relocate("net.kyori", "ac.grim.grimac.shaded.kyori") // use PE's built-in adventure instead when not shading
         }
         relocate("co.aikar.commands", "ac.grim.grimac.shaded.acf")
@@ -233,6 +234,7 @@ tasks.shadowJar {
         relocate("org.json", "ac.grim.grimac.shaded.json")
         relocate("org.intellij", "ac.grim.grimac.shaded.intellij")
         relocate("org.jetbrains", "ac.grim.grimac.shaded.jetbrains")
-        relocate("com.zaxxer", "ac.grim.gimac.shaded.zaxxer")
+        relocate("com.zaxxer", "ac.grim.grimac.shaded.zaxxer")
+        relocate("org.slf4j", "ac.grim.grimac.shaded.slf4j")
     }
 }

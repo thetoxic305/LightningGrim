@@ -30,24 +30,22 @@ public class BukkitNMS {
 
         if (version.isNewerThanOrEquals(ServerVersion.V_1_17)) {
             if (version.isOlderThan(ServerVersion.V_1_19)) {
-                Method clearActiveItem = LivingEntity.class.getMethod("clearActiveItem");
-                return clearActiveItem::invoke;
+                return LivingEntity::clearActiveItem;
             }
 
             Method setLivingEntityFlag = Class.forName(version.isOlderThan(ServerVersion.V_1_20_5) ? "net.minecraft.world.entity.EntityLiving" : "net.minecraft.world.entity.LivingEntity")
                     .getDeclaredMethod(version.isOlderThan(ServerVersion.V_1_20_5) ? "c" : "setLivingEntityFlag", int.class, boolean.class);
             Method getHandle = (version.isOlderThan(ServerVersion.V_1_20_5)
-                    ? Class.forName("org.bukkit.craftbukkit." + getNmsPackageName() + ".entity.CraftPlayer")
+                    ? Class.forName("org.bukkit.craftbukkit." + Bukkit.getServer().getClass().getPackageName().split("\\.")[3] + ".entity.CraftPlayer")
                     : Class.forName("org.bukkit.craftbukkit.entity.CraftPlayer")
             ).getMethod("getHandle");
 
             setLivingEntityFlag.setAccessible(true);
-            Method clearActiveItem = Player.class.getMethod("clearActiveItem");
 
             return player -> {
                 // don't trigger gameevents
                 setLivingEntityFlag.invoke(getHandle.invoke(player), 1, false);
-                clearActiveItem.invoke(player);
+                player.clearActiveItem();
             };
         }
 
