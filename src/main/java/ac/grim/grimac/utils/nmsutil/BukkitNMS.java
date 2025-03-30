@@ -36,7 +36,7 @@ public class BukkitNMS {
             Method setLivingEntityFlag = Class.forName(version.isOlderThan(ServerVersion.V_1_20_5) ? "net.minecraft.world.entity.EntityLiving" : "net.minecraft.world.entity.LivingEntity")
                     .getDeclaredMethod(version.isOlderThan(ServerVersion.V_1_20_5) ? "c" : "setLivingEntityFlag", int.class, boolean.class);
             Method getHandle = (version.isOlderThan(ServerVersion.V_1_20_5)
-                    ? Class.forName("org.bukkit.craftbukkit." + Bukkit.getServer().getClass().getPackageName().split("\\.")[3] + ".entity.CraftPlayer")
+                    ? Class.forName("org.bukkit.craftbukkit." + getNmsPackageName() + ".entity.CraftPlayer")
                     : Class.forName("org.bukkit.craftbukkit.entity.CraftPlayer")
             ).getMethod("getHandle");
 
