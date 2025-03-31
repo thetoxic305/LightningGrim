@@ -58,7 +58,7 @@ public class BadPacketsP extends Check implements PacketCheck {
                     flag = button != 0;
                     break;
                 case UNKNOWN:
-                    flag = false;
+                    flag = true;
                     break;
                 default:
                     throw new IllegalStateException("Impossible clickType; Compiler does not know this is unreachable!");
