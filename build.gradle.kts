@@ -56,6 +56,10 @@ repositories {
             includeGroup("com.github.grimanticheat")
         }
     }
+    maven {
+        name = "grimacSnapshots"
+        url = uri("https://repo.grim.ac/snapshots")
+    }
     maven("https://repo.viaversion.com") // ViaVersion
     maven("https://repo.aikar.co/content/groups/aikar/") // ACF
     maven("https://nexus.scarsz.me/content/repositories/releases") // Configuralize
@@ -86,7 +90,7 @@ dependencies {
 
     // Used for local testing:
     //implementation("ac.grim.grimac:GrimAPI:1.0")
-    implementation("com.github.grimanticheat:grimapi:05e31d62f2")
+    implementation("ac.grim.grimac:GrimAPI:05e31d62f2")
 
     implementation("net.kyori:adventure-text-minimessage:4.20.0")
     implementation("net.kyori:adventure-platform-bukkit:4.3.4")
