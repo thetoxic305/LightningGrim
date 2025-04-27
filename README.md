@@ -1,27 +1,47 @@
 # GrimAC
 
-This project is considered feature complete for the 2.0 (open-source) branch of this project. If you would like a bugfix or enhancement and cannot sponsor the work, pull requests are welcome. You can join the [discord](https://discord.com/invite/kqQAhTmkUF) for jar releases & changelogs.
-
 GrimAC is an open source Minecraft anticheat designed for 1.21 and supports 1.8-1.21. It is free while in beta. It will eventually become paid and/or will include offering additional subscription based paid checks. Geyser players are fully exempt.
 
-### Compiling through terminal/command prompt
-1. git clone https://github.com/GrimAnticheat/Grim.git (or click the green code button, download ZIP, then unzip it.)
-2. cd Grim
-3. gradlew build
-4. The final jar is located in build/libs
+This project is considered feature complete for the 2.0 (open-source) branch of this project. If you would like a bugfix or enhancement and cannot sponsor the work, pull requests are welcome.
 
-### API Information
-Grim's API allows you to integrate Grim into your own plugins. For more information, check out the API's GitHub repository [here](https://github.com/GrimAnticheat/GrimAPI).
+## Downloads
+- [Modrinth](https://modrinth.com/plugin/grimac)
+- [Hangar](https://hangar.papermc.io/GrimAnticheat/GrimAnticheat)
+- [SpigotMC](https://www.spigotmc.org/resources/grim-anticheat.99923/)
+- *For bleeding edge builds use* [Github artifacts](https://nightly.link/GrimAnticheat/Grim/workflows/gradle-publish/2.0/artifact.zip)
+
+## Installation notes
+- Java 8 is fully supported.
+- Paper, Spigot, and Folia are currently supported.
+- If you use Geyser, place Floodgate on the backend server so grim can exempt bedrock players. Grim cannot access the Floodgate API if it is on the proxy.
+- If you use ViaVersion, it should be on the backend server as movement is highly dependent on client version.
+
+## Support & wiki information
+- Support & discussion: [Discord](https://discord.com/invite/kqQAhTmkUF)
+- Report issues: [Issues](https://github.com/GrimAnticheat/Grim/issues/new/choose)
+- Wiki & examples: [Wiki](https://github.com/GrimAnticheat/Grim/wiki)
+
+## Developer API
+Grim's API allows you to integrate Grim into your own plugins.
+- API repository: [GrimAPI](https://github.com/GrimAnticheat/GrimAPI)
+- Wiki info: [Wiki](https://github.com/GrimAnticheat/GrimAPI)
+
+## How to compile
+
+1. `git clone https://github.com/GrimAnticheat/Grim.git`
+2. `cd Grim`
+3. `./gradlew build`
+4. The final jar will compile into the build/libs folder
 
 ## Grim supremacy
 
-Here are the main cores that make Grim stand out against other anticheats
+What makes Grim stand out against other anticheats?
 
 ### Movement Simulation Engine
 
 * We have a 1:1 replication of the player's possible movements
-* This covers everything from basic walking, swimming, knockback, cobwebs, to bubble columns
-* It even covers riding entities from boats to pigs to striders
+    * This covers everything from basic walking, swimming, knockback, cobwebs, to bubble columns
+    * It even covers riding entities from boats to pigs to striders
 * Built upon covering edge cases to confirm accuracy
 * 1.13+ clients on 1.13+ servers, 1.12- clients on 1.13+ servers, 1.13+ clients on 1.12- servers, and 1.12- clients on 1.12- servers are all supported regardless of the large technical changes between these versions.
 * The order of collisions depends on the client version and is correct

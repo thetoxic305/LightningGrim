@@ -2,43 +2,82 @@ package ac.grim.grimac.checks.impl.badpackets;
 
 import ac.grim.grimac.checks.Check;
 import ac.grim.grimac.checks.CheckData;
-import ac.grim.grimac.checks.type.PacketCheck;
+import ac.grim.grimac.checks.type.PostPredictionCheck;
 import ac.grim.grimac.player.GrimPlayer;
-import ac.grim.grimac.utils.nmsutil.BlockBreakSpeed;
+import ac.grim.grimac.utils.anticheat.update.PredictionComplete;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
-import com.github.retrooper.packetevents.protocol.item.type.ItemTypes;
-import com.github.retrooper.packetevents.protocol.player.ClientVersion;
-import com.github.retrooper.packetevents.protocol.player.DiggingAction;
-import com.github.retrooper.packetevents.protocol.world.states.type.StateType;
-import com.github.retrooper.packetevents.protocol.world.states.type.StateTypes;
-import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerDigging;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.protocol.player.GameMode;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientEntityAction;
 
 @CheckData(name = "BadPacketsX", experimental = true)
-public class BadPacketsX extends Check implements PacketCheck {
+public class BadPacketsX extends Check implements PostPredictionCheck {
     public BadPacketsX(GrimPlayer player) {
         super(player);
     }
 
-    public final boolean noFireHitbox = player.getClientVersion().isOlderThanOrEquals(ClientVersion.V_1_15_2);
+    private boolean sprint;
+    private boolean sneak;
+    private int flags;
 
-    public final void handle(PacketReceiveEvent event, WrapperPlayClientPlayerDigging dig, StateType block) {
-        if (dig.getAction() != DiggingAction.START_DIGGING && dig.getAction() != DiggingAction.FINISHED_DIGGING)
+    @Override
+    public void onPredictionComplete(final PredictionComplete predictionComplete) {
+        if (!player.canSkipTicks()) {
+            if (flags > 0) {
+                setbackIfAboveSetbackVL();
+            }
+
+            flags = 0;
             return;
+        }
 
-        // the block does not have a hitbox
-        boolean invalid = (block == StateTypes.LIGHT && !(player.getInventory().getHeldItem().is(ItemTypes.LIGHT) || player.getInventory().getOffHand().is(ItemTypes.LIGHT)))
-                || block.isAir()
-                || block == StateTypes.WATER
-                || block == StateTypes.LAVA
-                || block == StateTypes.BUBBLE_COLUMN
-                || block == StateTypes.MOVING_PISTON
-                || (block == StateTypes.FIRE && noFireHitbox)
-                // or the client claims to have broken an unbreakable block
-                || block.getHardness() == -1.0f && dig.getAction() == DiggingAction.FINISHED_DIGGING;
+        if (player.isTickingReliablyFor(3)) {
+            for (; flags > 0; flags--) {
+                flagAndAlertWithSetback();
+            }
+        }
 
-        if (invalid && flagAndAlert("block=" + block.getName() + ", type=" + dig.getAction()) && shouldModifyPackets()) {
-            event.setCancelled(true);
-            player.onPacketCancel();
+        flags = 0;
+    }
+
+    @Override
+    public void onPacketReceive(PacketReceiveEvent event) {
+        if (player.gamemode == GameMode.SPECTATOR || isTickPacket(event.getPacketType())) {
+            sprint = sneak = false;
+            return;
+        }
+
+        if (event.getPacketType() == PacketType.Play.Client.ENTITY_ACTION) {
+            WrapperPlayClientEntityAction wrapper = new WrapperPlayClientEntityAction(event);
+            switch (wrapper.getAction()) {
+                case START_SNEAKING:
+                case STOP_SNEAKING:
+                    if (sneak) {
+                        if (player.canSkipTicks() || flagAndAlert()) {
+                            flags++;
+                        }
+                    }
+                    sneak = true;
+                    break;
+
+                case START_SPRINTING:
+                case STOP_SPRINTING:
+                    if (player.inVehicle()) {
+                        return;
+                    }
+
+                    if (sprint) {
+                        if (player.canSkipTicks() || flagAndAlert()) {
+                            flags++;
+                        }
+                    }
+                    sprint = true;
+                    break;
+
+                default:
+                    // Handle other cases if necessary
+                    break;
+            }
         }
     }
 }

@@ -5,30 +5,39 @@ import ac.grim.grimac.checks.CheckData;
 import ac.grim.grimac.checks.type.BlockPlaceCheck;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.update.BlockPlace;
-import ac.grim.grimac.utils.collisions.HitboxData;
-import ac.grim.grimac.utils.collisions.RaycastData;
 import ac.grim.grimac.utils.collisions.datatypes.SimpleCollisionBox;
-import ac.grim.grimac.utils.data.HitData;
+import ac.grim.grimac.utils.data.BlockHitData;
 import ac.grim.grimac.utils.nmsutil.BlockRayTrace;
+import ac.grim.grimac.utils.nmsutil.ReachUtilsPrimitives;
 import com.github.retrooper.packetevents.protocol.attribute.Attributes;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
 import com.github.retrooper.packetevents.protocol.player.GameMode;
 import com.github.retrooper.packetevents.protocol.world.BlockFace;
+import com.github.retrooper.packetevents.protocol.world.states.WrappedBlockState;
 import com.github.retrooper.packetevents.protocol.world.states.type.StateType;
 import com.github.retrooper.packetevents.protocol.world.states.type.StateTypes;
 import com.github.retrooper.packetevents.util.Vector3i;
-import org.bukkit.util.Vector;
+import com.viaversion.viaversion.util.Triple;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
-@CheckData(name = "LineOfSightPlace")
+@CheckData(name = "LineOfSightPlace", experimental = true)
 public class LineOfSightPlace extends BlockPlaceCheck {
 
     private double flagBuffer = 0; // If the player flags once, force them to play legit, or we will cancel the tick before.
     private boolean ignorePost = false;
     private boolean useBlockWhitelist;
     private HashSet<StateType> blockWhitelist;
+
+    // 15 is the maximum set of Collision boxes that will be used in the ray trace check
+    // it corresponds to the size of the collision boxes from the modern Cauldron
+    // Since this is used per-player we can avoid calling new[] by allocating it per-player in the check
+    private final SimpleCollisionBox[] collisionBoxBuffer = new SimpleCollisionBox[15];
+
+    public final Set<Triple<Vector3i, WrappedBlockState, Byte>> blocksChangedList = ConcurrentHashMap.newKeySet();
 
     public LineOfSightPlace(GrimPlayer player) {
         super(player);
@@ -41,7 +50,7 @@ public class LineOfSightPlace extends BlockPlaceCheck {
         if (flagBuffer > 0 && !didRayTraceHit(place)) {
             ignorePost = true;
             // If the player hit and has flagged this check recently
-            if (flagAndAlert("pre-flying: " + player.compensatedWorld.getWrappedBlockStateAt(place.getPlacedAgainstBlockLocation()).getType()) && shouldModifyPackets() && shouldCancel()) {
+            if (flagAndAlert("pre-flying: " + player.compensatedWorld.getBlock(place.getPlacedAgainstBlockLocation()).getType()) && shouldModifyPackets() && shouldCancel()) {
                 place.resync();  // Deny the block placement.
             }
         }
@@ -63,14 +72,14 @@ public class LineOfSightPlace extends BlockPlaceCheck {
         // This can false with rapidly moving yaw in 1.8+ clients
         if (!hit) {
             flagBuffer = 1;
-            flagAndAlert("post-flying: " + player.compensatedWorld.getWrappedBlockStateAt(place.getPlacedAgainstBlockLocation()).getType());
+            flagAndAlert("post-flying: " + player.compensatedWorld.getBlock(place.getPlacedAgainstBlockLocation()).getType());
         } else {
             flagBuffer = Math.max(0, flagBuffer - 0.1);
         }
     }
 
     private boolean checkIfShouldSkip(BlockPlace place) {
-        StateType targetBlockStateType = player.compensatedWorld.getWrappedBlockStateAt(place.getPlacedAgainstBlockLocation()).getType();
+        StateType targetBlockStateType = player.compensatedWorld.getBlock(place.getPlacedAgainstBlockLocation()).getType();
         if (player.gamemode == GameMode.SPECTATOR) return true; // A waste to check creative mode players
         if (targetBlockStateType == StateTypes.REDSTONE_WIRE) return true; // Redstone too buggy
         if (player.compensatedWorld.isNearHardEntity(player.boundingBox.copy().expand(4))) return true; // Shulkers and Pistons are too buggy
@@ -106,19 +115,19 @@ public class LineOfSightPlace extends BlockPlaceCheck {
             return true;
         }
         // End checking if the player is in the block
-        double[][] possibleLookDirs;
+        float[][] possibleLookDirs;
         // 1.9+ players could be a tick behind because we don't get skipped ticks
         if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9)) {
-            possibleLookDirs = new double[][]{
+            possibleLookDirs = new float[][]{
                     {player.xRot, player.yRot},
                     {player.lastXRot, player.lastYRot},
                     {player.lastXRot, player.yRot}
             };
         } else if (player.getClientVersion().isOlderThan(ClientVersion.V_1_8)) {
             // 1.7 players do not have any of these issues! They are always on the latest look vector
-            possibleLookDirs = new double[][]{{player.xRot, player.yRot}};
+            possibleLookDirs = new float[][]{{player.xRot, player.yRot}};
         } else {
-            possibleLookDirs = new double[][]{
+            possibleLookDirs = new float[][]{
                     {player.xRot, player.yRot},
                     {player.lastXRot, player.yRot}
             };
@@ -126,7 +135,7 @@ public class LineOfSightPlace extends BlockPlaceCheck {
 
         // We do not need to add 0.03/0.0002 to maxDistance to ensure our raytrace hits blocks
         // Since we expand the hitboxes of the expectedTargetBlock by 0.03/0.002 already later
-        double maxDistance = player.compensatedEntities.getSelf().getAttributeValue(Attributes.PLAYER_BLOCK_INTERACTION_RANGE);
+        double maxDistance = player.compensatedEntities.self.getAttributeValue(Attributes.PLAYER_BLOCK_INTERACTION_RANGE);
 
         // Define possible offsets
         // TODO, vectorize this with SIMD or AVX for performance
@@ -144,15 +153,15 @@ public class LineOfSightPlace extends BlockPlaceCheck {
         double[] eyeLookDir = new double[3];
 
         for (double eyeHeight : possibleEyeHeights) {
-            for (double[] lookDir : possibleLookDirs) {
+            for (float[] lookDir : possibleLookDirs) {
                 for (double[] offset : offsets) {
                     eyePosition[0] = player.x + offset[0];
                     eyePosition[1] = player.y + eyeHeight + offset[1];
                     eyePosition[2] = player.z + offset[2];
 
-                    calculateDirection(eyeLookDir, lookDir[0], lookDir[1]);
+                    ReachUtilsPrimitives.getLook(player, lookDir[0], lookDir[1], eyeLookDir);
 
-                    if (getTargetBlock(eyePosition, eyeLookDir, maxDistance, interactBlockVec, expectedBlockFace)) {
+                    if (didRayTraceHitTargetBlock(eyePosition, eyeLookDir, maxDistance, interactBlockVec, expectedBlockFace)) {
                         return true; // If any possible face matches the client-side placement, assume it's legitimate
                     }
                 }
@@ -162,22 +171,11 @@ public class LineOfSightPlace extends BlockPlaceCheck {
         return false; // No matching face found
     }
 
-    // Helper method to calculate direction (replace the Ray class method)
-    private void calculateDirection(double[] result, double xRot, double yRot) {
-        float rotX = (float) Math.toRadians(xRot);
-        float rotY = (float) Math.toRadians(yRot);
-        result[1] = -player.trigHandler.sin(rotY);
-        double xz = player.trigHandler.cos(rotY);
-        result[0] = -xz * player.trigHandler.sin(rotX);
-        result[2] = xz * player.trigHandler.cos(rotX);
-    }
-
-    private boolean getTargetBlock(double[] eyePos, double[] eyeDir, double maxDistance, int[] targetBlockVec, BlockFace expectedBlockFace) {
-        HitData hitData = BlockRayTrace.getNearestReachHitResult(player, eyePos, eyeDir, maxDistance, maxDistance, targetBlockVec, false);
-
+    private boolean didRayTraceHitTargetBlock(double[] eyePos, double[] eyeDir, double maxDistance, int[] targetBlockVec, BlockFace expectedBlockFace) {
+        BlockHitData hitData = BlockRayTrace.getNearestHitResult(player, eyePos, eyeDir, maxDistance, maxDistance, targetBlockVec, expectedBlockFace, collisionBoxBuffer, false);
 
         // we check for hitdata != null because of being in expanded hitbox, or there was no result, do we still need this?
-        return hitData != null && new Vector3i(targetBlockVec[0], targetBlockVec[1], targetBlockVec[2]).equals(hitData.getPosition()) && hitData.getClosestDirection() == expectedBlockFace;
+        return hitData != null && hitData.success;
     }
 
     private boolean isBlockTypeWhitelisted(StateType type) {

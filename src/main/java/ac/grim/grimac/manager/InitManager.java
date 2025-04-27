@@ -5,8 +5,13 @@ import ac.grim.grimac.manager.init.Initable;
 import ac.grim.grimac.manager.init.load.PacketEventsInit;
 import ac.grim.grimac.manager.init.start.*;
 import ac.grim.grimac.manager.init.stop.TerminatePacketEvents;
+import ac.grim.grimac.utils.anticheat.LogUtil;
+import ac.grim.grimac.utils.anticheat.MessageUtil;
 import com.google.common.collect.ImmutableList;
 import lombok.Getter;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 public class InitManager {
 
@@ -37,8 +42,15 @@ public class InitManager {
                 .add(new PacketLimiter())
                 .add(GrimAPI.INSTANCE.getDiscordManager())
                 .add(GrimAPI.INSTANCE.getSpectateManager())
+                .add(GrimAPI.INSTANCE.getViolationDatabaseManager())
                 .add(new JavaVersion())
                 .add(new ViaVersion())
+                .add(new TAB())
+                .add(() -> {
+                    if (MessageUtil.hasPlaceholderAPI) {
+                        new PlaceholderAPIExpansion().register();
+                    }
+                })
                 .build();
 
         initializersOnStop = ImmutableList.<Initable>builder()
@@ -65,7 +77,12 @@ public class InitManager {
         try {
             initable.start();
         } catch (Exception e) {
-            e.printStackTrace();
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            e.printStackTrace(pw);
+            String stackTrace = sw.toString();
+
+            LogUtil.error("Failed to stop initializer: " + initable.getClass().getName() + stackTrace);
         }
     }
 

@@ -3,12 +3,13 @@ package ac.grim.grimac.utils.nmsutil;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.collisions.datatypes.SimpleCollisionBox;
 import ac.grim.grimac.utils.data.packetentity.PacketEntity;
+import ac.grim.grimac.utils.data.packetentity.PacketEntityPainting;
 import com.github.retrooper.packetevents.protocol.attribute.Attributes;
 
 public class GetBoundingBox {
     public static SimpleCollisionBox getCollisionBoxForPlayer(GrimPlayer player, double centerX, double centerY, double centerZ) {
-        if (player.compensatedEntities.getSelf().getRiding() != null) {
-            return getPacketEntityBoundingBox(player, centerX, centerY, centerZ, player.compensatedEntities.getSelf().getRiding());
+        if (player.inVehicle()) {
+            return getPacketEntityBoundingBox(player, centerX, centerY, centerZ, player.compensatedEntities.self.getRiding());
         }
 
         return getPlayerBoundingBox(player, centerX, centerY, centerZ);
@@ -31,11 +32,11 @@ public class GetBoundingBox {
     }
 
     public static SimpleCollisionBox getBoundingBoxFromPosAndSize(GrimPlayer player, double centerX, double minY, double centerZ, float width, float height) {
-        return getBoundingBoxFromPosAndSize(player.compensatedEntities.getSelf(), centerX, minY, centerZ, width, height);
+        return getBoundingBoxFromPosAndSize(player.compensatedEntities.self, centerX, minY, centerZ, width, height);
     }
 
     public static SimpleCollisionBox getBoundingBoxFromPosAndSize(PacketEntity entity, double centerX, double minY, double centerZ, float width, float height) {
-        final float scale = (float) entity.getAttributeValue(Attributes.GENERIC_SCALE);
+        final float scale = (float) entity.getAttributeValue(Attributes.SCALE);
         return getBoundingBoxFromPosAndSizeRaw(centerX, minY, centerZ, width * scale, height * scale);
     }
 
@@ -47,5 +48,38 @@ public class GetBoundingBox {
         double maxZ = centerZ + (width / 2f);
 
         return new SimpleCollisionBox(minX, minY, minZ, maxX, maxY, maxZ, false);
+    }
+
+    public static double[] getEntityDimensions(GrimPlayer player, PacketEntity entity) {
+        final float scale = (float) entity.getAttributeValue(Attributes.SCALE);
+        final float width = BoundingBoxSize.getWidth(player, entity) * scale;
+        final float height = BoundingBoxSize.getHeight(player, entity) * scale;
+        return new double[] { width, height, width};
+    }
+
+    public static void expandBoundingBoxByEntityDimensions(SimpleCollisionBox box, GrimPlayer player, PacketEntity entity) {
+        if (entity instanceof PacketEntityPainting) {
+            SimpleCollisionBox paintingBox = ((PacketEntityPainting) entity).paintingHitBox;
+            // Copy the painting's hitbox dimensions
+            box.minX = paintingBox.minX;
+            box.minY = paintingBox.minY;
+            box.minZ = paintingBox.minZ;
+            box.maxX = paintingBox.maxX;
+            box.maxY = paintingBox.maxY;
+            box.maxZ = paintingBox.maxZ;
+            return;
+        }
+
+        double[] dimensions = getEntityDimensions(player, entity);
+        double halfWidth = dimensions[0] / 2.0;
+        double height = dimensions[1];
+        double halfDepth = dimensions[2] / 2.0;
+
+        box.minX -= halfWidth;
+        box.minY -= 0; // No downward expansion
+        box.minZ -= halfDepth;
+        box.maxX += halfWidth;
+        box.maxY += height;
+        box.maxZ += halfDepth;
     }
 }

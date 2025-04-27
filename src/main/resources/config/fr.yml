@@ -1,6 +1,6 @@
 # Configuration principale de GrimAC
 # Code source : https://github.com/MWHunter/Grim
-# Copyright 2024 DefineOutside et contributeurs, sous licence GPLv3.
+# Copyright 2025 DefineOutside et contributeurs, sous licence GPLv3.
 # Les binaires modifiés, ou les plugins contenant du code grim copié, doivent être privés,
 # ou avec le code source complet disponible pour les acheteurs sans frais supplémentaires.
 
@@ -18,6 +18,8 @@ alerts:
 verbose:
   print-to-console: false
 
+check-for-updates: true
+
 client-brand:
   # Cela signifie qu'il n'enverra pas la nature du client aux opérateurs si il correspond aux clients suivants
   ignored-clients:
@@ -25,6 +27,7 @@ client-brand:
     - "^fabric$"
     - "^lunarclient:v\\d+\\.\\d+\\.\\d+-\\d{4}$"
     - "^Feather Fabric$"
+    - "^labymod$"
 
 spectators:
   # Masquer tout les spectateurs ayant la permission grim.spectator, peu importe s'ils sont actuellement en train d'observer.
@@ -63,6 +66,9 @@ Simulation:
   # Cela vise à empêcher le joueur d'accumuler trop de violations et de ne jamais pouvoir toutes les réinitialiser.
   # Plafond d'avantage par défaut (l"axe x = secondes, l'axe y = 1/1000 de bloc)) : https://www.desmos.com/calculator/4lovswdarj
   max-ceiling: 4
+  # Seuil du niveau de violation pour le setback
+  # 1 pour le comportement ancien
+  setback-violation-threshold: 1
 
 # Vérifications pour voir si un joueur est entré dans un bloc pendant un mouvement.
 Phase:
@@ -130,7 +136,7 @@ LineOfSightPlace:
 # Vérification de no-slow basée sur la prédiction.
 # Grim tient compte des problèmes de netcode ici... difficile à tromper même en spamant le clic droit et le bouton de la main secondaire.
 # Bien plus stable que les autres anti-triche, mais veuillez signaler toute fausse détection... J'ai corrigé de nombreux problèmes de netcode ici.
-NoSlowA:
+NoSlow:
   # Quel est le niveau d'écart considéré comme "triche"
   # Par défaut, cela est inférieur à d'autres écarts.
   # Génère des avertissements avec des valeurs comprises entre 0,03 et 0,2 lors de l'utilisation de NoSlow
@@ -182,6 +188,10 @@ TimerVehicle:
 EntityControl:
   setbackvl: 25
 
+PacketOrderI:
+  # enable if players are getting flagged for using 1.7 animations mods
+  exempt-placing-while-digging: false
+
 Reach:
   # De combien devrions-nous agrandir les hitboxes ? Une augmentation de 0,0005 devrait détecter une portée de 3,0005 ou plus.
   # 
@@ -191,6 +201,8 @@ Reach:
   # Devons-nous annuler les coups que nous savons impossibles ?
   # Les coups entre 3,00 et 3,03 peuvent passer mais seront quand même signalés en raison des limitations de l'ordre des paquets.
   block-impossible-hits: true
+  # Only apply reach checks if the target is a player
+  ignore-non-player-targets: false
   # Cela enverra un paquet supplémentaire à la fin de chaque tick pour augmenter les chances de détecter les triches.
   # Cela s'injecte dans la liste de connexions du serveur pour envoyer un dernier paquet juste avant que le serveur ne le vide.
   # Activer cette fonctionnalité augmentera l'utilisation de la bande passante pour tous les joueurs.
@@ -212,10 +224,16 @@ debug-pipeline-on-join: false
 # Active les vérifications expérimentales
 experimental-checks: false
 
+reset-item-usage-on-item-update: true
+reset-item-usage-on-attack: true
+reset-item-usage-on-slot-change: true
+
 # Grim annule parfois des paquets illégaux, comme ceux liés au chronomètre, après avoir annulé X paquets en une seconde,
 # à partir de combien de paquets annulés devrions-nous simplement expulser le joueur ?
 # Cela est nécessaire car certains limiteurs de paquets ne comptent pas les paquets annulés par Grim.
 packet-spam-threshold: 100
+# Enable this to print a stacktrace when a player is kicked due to packet-spam-threshold
+debug-packet-cancel: false
 
 # Grim est capable de faire respecter qu'un joueur sorti de l'état de vol ne peut pas avoir plus de X millisecondes de ping.
 # Cela est dû au fait que Grim ne vérifie pas actuellement les joueurs en vol.
@@ -226,4 +244,19 @@ max-ping-out-of-flying: 1000
 # This prevents high latency players from being able to use 1 firework boost with an elytra forever.
 max-ping-firework-boost: 1000
 
-config-version: 9
+history:
+  # How many entries should be shown for each page with /grim history <player>
+  entries-per-page: 15
+  # What should the inserted server name be for the history command? This is useful if you use the same database for multiple servers
+  server-name: Server-Name
+  database:
+    # Use SQLITE for local storage, use MYSQL if you have an external MySQL database. This is only updated on server restart
+    type: SQLITE
+    # MySQL connection details
+    host: localhost
+    port: 3306
+    database: grim
+    username: root
+    password: ""
+
+config-version: 10

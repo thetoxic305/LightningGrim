@@ -7,11 +7,13 @@ import ac.grim.grimac.api.config.ConfigManager;
 import ac.grim.grimac.utils.anticheat.LogUtil;
 import github.scarsz.configuralize.DynamicConfig;
 import github.scarsz.configuralize.Language;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 
 public class ConfigManagerFileImpl implements ConfigManager, BasicReloadable {
 
@@ -32,6 +34,7 @@ public class ConfigManagerFileImpl implements ConfigManager, BasicReloadable {
         GrimAPI.INSTANCE.getPlugin().getDataFolder().mkdirs();
         if (!initialized) {
             initialized = true;
+            upgrade();
             config.addSource(GrimAC.class, "config", getConfigFile("config.yml"));
             config.addSource(GrimAC.class, "messages", getConfigFile("messages.yml"));
             config.addSource(GrimAC.class, "discord", getConfigFile("discord.yml"));
@@ -81,7 +84,7 @@ public class ConfigManagerFileImpl implements ConfigManager, BasicReloadable {
 
                     configVersion = Integer.parseInt(configStringVersion);
                     // TODO: Do we have to hardcode this?
-                    configString = configString.replaceAll("config-version: " + configStringVersion, "config-version: 9");
+                    configString = configString.replaceAll("config-version: " + configStringVersion, "config-version: 10");
                     Files.write(config.toPath(), configString.getBytes());
 
                     upgradeModernConfig(config, configString, configVersion);
@@ -122,6 +125,9 @@ public class ConfigManagerFileImpl implements ConfigManager, BasicReloadable {
         }
         if (configVersion < 9) {
             newOffsetHandlingAntiKB(config, configString);
+        }
+        if (configVersion < 10) {
+            addInventoryPunishments();
         }
     }
 
@@ -165,6 +171,28 @@ public class ConfigManagerFileImpl implements ConfigManager, BasicReloadable {
                             "      - \"Autoclicker\"\n" +
                             "    commands:\n" +
                             "      - \"20:40 [alert]\"\n";
+                }
+
+                Files.write(config.toPath(), configString.getBytes());
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    private void addInventoryPunishments() {
+        File config = new File(GrimAPI.INSTANCE.getPlugin().getDataFolder(), "punishments.yml");
+        String configString;
+        if (config.exists()) {
+            try {
+                configString = new String(Files.readAllBytes(config.toPath()));
+
+                // If it works, it isn't stupid.  Only replace it if it exactly matches the default config.
+                String reachSection = "  Reach:";
+                String inventorySection = "  Inventory:\n    remove-violations-after: 300\n    checks:\n      - \"Inventory\"\n    commands:\n      - \"10:10 [alert]\"\n      - \"20:20 [webhook]\"\n      - \"20:20 [proxy]\"\n";
+
+                int index = configString.indexOf(reachSection);
+                if (index != -1) {
+                    configString = configString.substring(0, index) + inventorySection + configString.substring(index);
                 }
 
                 Files.write(config.toPath(), configString.getBytes());
@@ -293,6 +321,11 @@ public class ConfigManagerFileImpl implements ConfigManager, BasicReloadable {
     }
 
     @Override
+    public @Nullable String getString(String key) {
+        return config.getString(key);
+    }
+
+    @Override
     public List<String> getStringList(String key) {
         return config.getStringList(key);
     }
@@ -325,6 +358,36 @@ public class ConfigManagerFileImpl implements ConfigManager, BasicReloadable {
     @Override
     public <T> T get(String key) {
         return config.get(key);
+    }
+
+    @Override
+    public <T> @Nullable T getElse(String key, T otherwise) {
+        return config.getElse(key, otherwise);
+    }
+
+    @Override
+    public <K, V> Map<K, V> getMap(String key) {
+        return config.getMap(key);
+    }
+
+    @Override
+    public @Nullable <K, V> Map<K, V> getMapElse(String s, Map<K, V> map) {
+        return config.getMapElse(s, map);
+    }
+
+    @Override
+    public @Nullable <T> List<T> getList(String path) {
+        return config.getList(path);
+    }
+
+    @Override
+    public @Nullable <T> List<T> getListElse(String path, List<T> otherwise) {
+        return config.getListElse(path, otherwise);
+    }
+
+    @Override
+    public boolean hasLoaded() {
+        return initialized;
     }
 
 }

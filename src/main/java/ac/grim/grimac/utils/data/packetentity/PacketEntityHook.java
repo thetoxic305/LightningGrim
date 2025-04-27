@@ -13,4 +13,9 @@ public class PacketEntityHook extends PacketEntity{
         super(player, uuid, type, x, y, z);
         this.owner = owner;
     }
+
+    @Override
+    public boolean canHit() {
+        return false;
+    }
 }

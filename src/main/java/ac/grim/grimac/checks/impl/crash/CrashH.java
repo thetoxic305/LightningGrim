@@ -32,13 +32,12 @@ public class CrashH extends Check implements PacketCheck {
             }
             // paper's patch
             final int index;
-            if (text.length() > 64 && ((index = text.indexOf(' ')) == -1 || index >= 64)) {
+            if (length > 64 && ((index = text.indexOf(' ')) == -1 || index >= 64)) {
                 if (shouldModifyPackets()) {
                     event.setCancelled(true);
                     player.onPacketCancel();
                 }
                 flagAndAlert("(invalid) length=" + length);
-                return;
             }
         }
     }

@@ -1,6 +1,6 @@
 # GrimAC ana konfigrasyon dosyası
 # Kaynak kodu: https://github.com/MWHunter/Grim
-# Telif Hakkı 2024 DefineOutside ve katkıda bulunanlar, GPLv3 altında lisanslanmıştır.
+# Telif Hakkı 2025 DefineOutside ve katkıda bulunanlar, GPLv3 altında lisanslanmıştır.
 # Değiştirilmiş ikili dosyalar veya kopyalanmış grim kodlu eklentiler özel olmalıdır,
 # veya ek ücret ödemeden alıcılara sunulan tam kaynak kodu ile.
 
@@ -18,6 +18,8 @@ alerts:
 verbose:
   print-to-console: false
 
+check-for-updates: true
+
 client-brand:
   # Bu, giriş yapılan clientin aşağıdaki regex'lerle eşleşmesi durumunda markalarını operatörlere yayınlamayacağı anlamına gelir
   ignored-clients:
@@ -25,6 +27,7 @@ client-brand:
     - "^fabric$"
     - "^lunarclient:v\\d+\\.\\d+\\.\\d+-\\d{4}$"
     - "^Feather Fabric$"
+    - "^labymod$"
 
 spectators:
   # Seyirciler aktif olarak izliyor olsalar bile, grim.spectator iznine sahip tüm seyircileri gizle
@@ -63,6 +66,9 @@ Simulation:
   # Bu, oyuncunun çok fazla ihlal biriktirmesini ve bunların hepsini temizleyememesini önlemek içindir
   # Varsayılan avantaj tavanı (x ekseni = saniye, y ekseni = 1/1000 blok): https://www.desmos.com/calculator/4lovswdarj
   max-ceiling: 4
+  # Geri alma için ihlal seviyesi eşiği
+  # Eski davranış için 1
+  setback-violation-threshold: 1
 
 # Bir oyuncunun bir hareket sırasında bir bloğa girip girmediğini kontrol eder
 Phase:
@@ -131,7 +137,7 @@ LineOfSightPlace:
 # Tahmin tabanlı yavaşlama kontrolü
 # Grim burada hatalı ağ kodunu dikkate alır... sağ tıklama ve el yan tuşunu spam yapsanız bile yanlış pozitiflik oluşturması zordur
 # Diğer anti-hilelerden çok daha stabil, ancak herhangi bir yanlış pozitif rapor edin... burada birçok ağ kodu sorununu çözdüm.
-NoSlowA:
+NoSlow:
   # Ne kadar bir sapma "hile" olarak kabul edilir?
   # Varsayılan olarak bu, diğer sapmalardan daha düşüktür
   # NoSlow açıkken 0.03-0.2 aralığında sürekli olarak uyarı verir
@@ -182,6 +188,10 @@ TimerVehicle:
 EntityControl:
   setbackvl: 25
 
+PacketOrderI:
+  # enable if players are getting flagged for using 1.7 animations mods
+  exempt-placing-while-digging: false
+
 Reach:
   # Hitbox'ları ne kadar genişletmeliyiz? 0.0005, 3.0005+ menzili tespit etmelidir
   #
@@ -191,6 +201,8 @@ Reach:
   # İmkansız olduğunu bildiğimiz vuruşları iptal etmeli miyiz?
   # Paket sırası sınırlamaları nedeniyle 3.00-3.03 arası vuruşlar gerçekleşebilir, ancak yine de işaretlenebilir
   block-impossible-hits: true
+  # Only apply reach checks if the target is a player
+  ignore-non-player-targets: false
   # Bu, hileleri yakalama olasılığını artırmak için her tikin sonunda ek bir paket gönderecektir
   # Bu, sunucunun bağlantı listesine enjekte edilerek sunucu boşaltmadan hemen önce son bir paket göndermek için yapılır
   # Bunu etkinleştirmek, tüm oyuncular için bant genişliği kullanımını artıracaktır
@@ -217,9 +229,15 @@ debug-pipeline-on-join: false
 # Deneysel kontrolleri etkinleştir
 experimental-checks: false
 
+reset-item-usage-on-item-update: true
+reset-item-usage-on-attack: true
+reset-item-usage-on-slot-change: true
+
 # Grim bazen timer gibi yasa dışı paketleri iptal eder; bir saniyede X paket iptal edildikten sonra, ne zaman
 # oyuncuyu basitçe atmalıyız? Bu, bazı paket sınırlayıcılarının Grim tarafından iptal edilen paketleri saymaması gerektiğindendir.
 packet-spam-threshold: 100
+# Enable this to print a stacktrace when a player is kicked due to packet-spam-threshold
+debug-packet-cancel: false
 
 # Grim, uçma durumundan çıkmış bir oyuncunun X milisaniyeden fazla ping'e sahip olamayacağını uygulayabilir
 # Bu, Grim'in şu anda uçan oyuncuları kontrol etmemesindendir
@@ -230,7 +248,22 @@ max-ping-out-of-flying: 1000
 # Bu, yüksek gecikmeli oyuncuların bir havai fişek ivmesini elytra ile sonsuza kadar kullanmalarını engeller.
 max-ping-firework-boost: 1000
 
-config-version: 9
+history:
+  # How many entries should be shown for each page with /grim history <player>
+  entries-per-page: 15
+  # What should the inserted server name be for the history command? This is useful if you use the same database for multiple servers
+  server-name: Server-Name
+  database:
+    # Use SQLITE for local storage, use MYSQL if you have an external MySQL database. This is only updated on server restart
+    type: SQLITE
+    # MySQL connection details
+    host: localhost
+    port: 3306
+    database: grim
+    username: root
+    password: ""
+
+config-version: 10
 
 # Translated by Kayera
 # Have a nice day :)

@@ -50,13 +50,13 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
     public boolean blockOffsets = false;
     // This required setback data is the head of the teleport.
     // It is set by both bukkit and netty due to going on the bukkit thread to setback players
+    @Getter
     private SetBackData requiredSetBack = null;
     public SetbackPosWithVector lastKnownGoodPosition;
     // Are we currently sending setback stuff?
     public boolean isSendingSetback = false;
     public int cheatVehicleInterpolationDelay = 0;
     private long lastWorldResync = 0;
-
 
     public SetbackTeleportUtil(GrimPlayer player) {
         super(player);
@@ -111,8 +111,7 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
         // Setbacks aren't allowed
         if (player.disableGrim) return true;
         // Player has permission to cheat, permission not given to OP by default.
-        if (player.bukkitPlayer != null && player.noSetbackPermission) return true;
-        return false;
+        return player.bukkitPlayer != null && player.noSetbackPermission;
     }
 
     private void simulateFriction(Vector vector) {
@@ -129,6 +128,7 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
             vector.setY(vector.getY() - 0.05); // Make the player fall a bit
         } else { // Gliding doesn't have friction, we handle it differently
             PredictionEngineNormal.staticVectorEndOfTick(player, vector); // Lava and normal movement
+            vector.multiply(player.stuckSpeedMultiplier); // Prevent abusing setbacks to move out of blocks like webs
         }
 
         // stop 1.8 players from stepping onto 1.25 high blocks, because why not?
@@ -153,12 +153,12 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
         VelocityData futureExplosion = player.checkManager.getExplosionHandler().getFutureExplosion();
 
         // Velocity sets
-        if (futureKb.getFirst() != null) {
-            clientVel = futureKb.getSecond();
+        if (futureKb.first() != null) {
+            clientVel = futureKb.second();
         }
 
         // Explosion adds
-        if (futureExplosion != null && (futureKb.getFirst() == null || futureKb.getFirst().transaction < futureExplosion.transaction)) {
+        if (futureExplosion != null && (futureKb.first() == null || futureKb.first().transaction < futureExplosion.transaction)) {
             clientVel.add(futureExplosion.vector);
         }
 
@@ -193,7 +193,7 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
             blockOffsets = true;
         }
 
-        SetBackData data = new SetBackData(new TeleportData(position, new RelativeFlag(0b11000), player.lastTransactionSent.get(), 0), player.xRot, player.yRot, clientVel, player.compensatedEntities.getSelf().getRiding() != null, false);
+        SetBackData data = new SetBackData(new TeleportData(position, new Vector3d(), new RelativeFlag(0b11000), player.lastTransactionSent.get(), 0), player.xRot, player.yRot, clientVel, player.inVehicle(), false);
         sendSetback(data);
     }
 
@@ -205,8 +205,8 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
 
         try {
             // Player is in a vehicle
-            if (player.compensatedEntities.getSelf().getRiding() != null) {
-                int vehicleId = player.compensatedEntities.getPacketEntityID(player.compensatedEntities.getSelf().getRiding());
+            if (player.inVehicle()) {
+                int vehicleId = player.getRidingVehicleId();
                 if (player.compensatedEntities.serverPlayerVehicle != null) {
                     // Dismount player from vehicle
                     if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_9)) {
@@ -247,7 +247,7 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
             data.getTeleportData().setTransaction(player.lastTransactionSent.get());
 
             // Use provided transaction ID to make sure it can never desync, although there's no reason to do this
-            addSentTeleport(new Location(null, position.getX(), y, position.getZ(), player.xRot % 360, player.yRot % 360), data.getTeleportData().getTransaction(), new RelativeFlag(0b11000), false, teleportId);
+            addSentTeleport(new Location(null, position.getX(), y, position.getZ(), player.xRot % 360, player.yRot % 360), new Vector3d(), data.getTeleportData().getTransaction(), new RelativeFlag(0b11000), false, teleportId);
             // This must be done after setting the sent teleport, otherwise we lose velocity data
             requiredSetBack = data;
             // Send after tracking to fix race condition
@@ -281,7 +281,7 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
 
             // There seems to be a version difference in teleports past 30 million... just clamp the vector
             Vector3d clamped = VectorUtils.clampVector(new Vector3d(trueTeleportX, trueTeleportY, trueTeleportZ));
-            double threshold = teleportPos.isRelative() ? player.getMovementThreshold() : 0;
+            double threshold = teleportPos.isRelativePos() ? player.getMovementThreshold() : 0;
             boolean closeEnoughY = Math.abs(clamped.getY() - y) <= 1e-7 + threshold; // 1.7 rounding
 
             if (player.lastTransactionReceived.get() == teleportPos.getTransaction() && Math.abs(clamped.getX() - x) <= threshold && closeEnoughY && Math.abs(clamped.getZ() - z) <= threshold) {
@@ -309,7 +309,7 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
                 }
                 continue;
             }
-            // No farther setbacks before the player's transactoin
+            // No farther setbacks before the player's transaction
             break;
         }
 
@@ -328,16 +328,16 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
         while (true) {
             Pair<Integer, Vector3d> teleportPos = player.vehicleData.vehicleTeleports.peek();
             if (teleportPos == null) break;
-            if (lastTransaction < teleportPos.getFirst()) {
+            if (lastTransaction < teleportPos.first()) {
                 break;
             }
 
-            Vector3d position = teleportPos.getSecond();
+            Vector3d position = teleportPos.second();
             if (position.getX() == x && position.getY() == y && position.getZ() == z) {
                 player.vehicleData.vehicleTeleports.poll();
 
                 return true;
-            } else if (lastTransaction > teleportPos.getFirst() + 1) {
+            } else if (lastTransaction > teleportPos.first() + 1) {
                 player.vehicleData.vehicleTeleports.poll();
 
                 // Vehicles have terrible netcode so just ignore it if the teleport wasn't from us setting the player back
@@ -378,38 +378,31 @@ public class SetbackTeleportUtil extends Check implements PostPredictionCheck {
         Column column = player.compensatedWorld.getChunk(GrimMath.floor(player.x) >> 4, GrimMath.floor(player.z) >> 4);
 
         // If true, the player is in an unloaded chunk
-        return !player.disableGrim && (column == null || column.transaction >= player.lastTransactionReceived.get() ||
+        return !player.disableGrim && (column == null || column.transaction() >= player.lastTransactionReceived.get() ||
                 // The player hasn't loaded past the DOWNLOADING TERRAIN screen
                 !player.getSetbackTeleportUtil().hasAcceptedSpawnTeleport);
     }
 
-    /**
-     * @return The current data for the setback, regardless of whether it is complete or not
-     */
-    public SetBackData getRequiredSetBack() {
-        return requiredSetBack;
-    }
-
-    public void addSentTeleport(Location position, int transaction, RelativeFlag flags, boolean plugin, int teleportId) {
-        TeleportData data = new TeleportData(new Vector3d(position.getX(), position.getY(), position.getZ()), flags, transaction, teleportId);
+    public void addSentTeleport(Location position, Vector3d velocity, int transaction, RelativeFlag flags, boolean plugin, int teleportId) {
+        TeleportData data = new TeleportData(new Vector3d(position.getX(), position.getY(), position.getZ()), velocity, flags, transaction, teleportId);
         pendingTeleports.add(data);
 
         Vector3d safePosition = new Vector3d(position.getX(), position.getY(), position.getZ());
 
         // We must convert relative teleports to avoid them becoming client controlled in the case of setback
-        if (flags.isSet(RelativeFlag.X.getMask())) {
+        if (flags.has(RelativeFlag.X)) {
             safePosition = safePosition.withX(safePosition.getX() + lastKnownGoodPosition.pos.getX());
         }
 
-        if (flags.isSet(RelativeFlag.Y.getMask())) {
+        if (flags.has(RelativeFlag.Y)) {
             safePosition = safePosition.withY(safePosition.getY() + lastKnownGoodPosition.pos.getY());
         }
 
-        if (flags.isSet(RelativeFlag.Z.getMask())) {
+        if (flags.has(RelativeFlag.Z)) {
             safePosition = safePosition.withZ(safePosition.getZ() + lastKnownGoodPosition.pos.getZ());
         }
 
-        data = new TeleportData(safePosition, flags, transaction, teleportId);
+        data = new TeleportData(safePosition, velocity, new RelativeFlag(0b11000), transaction, teleportId);
         requiredSetBack = new SetBackData(data, player.xRot, player.yRot, null, false, plugin);
 
         this.lastKnownGoodPosition = new SetbackPosWithVector(safePosition, new Vector());

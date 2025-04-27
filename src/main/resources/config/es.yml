@@ -1,6 +1,6 @@
 # La configuración principal de GrimAC
 # Código fuente: https://github.com/MWHunter/Grim
-# Copyright 2024 DefineOutside y contribuyentes, licenciado bajo GPLv3.
+# Copyright 2025 DefineOutside y contribuyentes, licenciado bajo GPLv3.
 # Binarios modificados o plugins con código de Grim deben ser privados o con
 # el código fuente disponible para todos los compradores sin costo adicional.
 
@@ -18,6 +18,8 @@ alerts:
 verbose:
   print-to-console: false
 
+check-for-updates: true
+
 client-brand:
   # Esto quiere decir que no se va a anunciar la marca del cliente si esta cumple alguno de los siguientes regexes:
   ignored-clients:
@@ -25,6 +27,7 @@ client-brand:
     - "^fabric$"
     - "^lunarclient:v\\d+\\.\\d+\\.\\d+-\\d{4}$"
     - "^Feather Fabric$"
+    - "^labymod$"
 
 spectators:
   # Ocultar todos los espectadores con el permiso grim.spectator sin importar si realmente están espectando
@@ -64,6 +67,9 @@ Simulation:
   # Esto es para prevenir que el jugador obtenga muchas violaciones y no pueda ser capaz de borrarlas
   # Tope de ventaja por defecto (eje x = segundos, eje y = bloque 1/1000): https://www.desmos.com/calculator/4lovswdarj
   max-ceiling: 4
+  # Umbral del nivel de violación para el retroceso
+  # 1 para el comportamiento antiguo
+  setback-violation-threshold: 1
 
 # Comprobaciones para ver si un jugador entro a un bloque durante un movimiento
 Phase:
@@ -133,7 +139,7 @@ LineOfSightPlace:
 # clic derecho y la mano secundaria.
 # Mucho mas estable que otros anti-cheats, pero por favor reportar todo falso positivo... he arreglado muchos
 # problemas del código de red aquí.
-NoSlowA:
+NoSlow:
   # ¿Cuánta debería ser la compensacion como para que se considere trampa?
   # Por defecto esto es más bajo que otras compensaciones
   # Marca por 0.03-0.2 consistentemente con NoSlow activado
@@ -186,6 +192,10 @@ TimerVehicle:
 EntityControl:
   setbackvl: 25
 
+PacketOrderI:
+  # enable if players are getting flagged for using 1.7 animations mods
+  exempt-placing-while-digging: false
+
 Reach:
   # Cuanto deberíamos expandir las hit-boxes? 0.0005 debería detectar un reach de 3.0005+
   #
@@ -196,6 +206,8 @@ Reach:
   # ¿Deberíamos cancelar golpes que sabemos que son imposibles?
   # Golpes de 3.00-3.03 puede que aun asi pasen, pero se marcaran debido a limitaciones del orden de paquetes.
   block-impossible-hits: true
+  # Only apply reach checks if the target is a player
+  ignore-non-player-targets: false
   # Esto mandará un paquete adicional al final de cada tick para aumentar las chances de encontrar trampas
   # Esto se inyecta en la lista de conexiones del servidor para mandar un paquete final justo antes de que el servidor haga "flush".
   # Habilitar esto causará que el uso de banda ancha de todos los jugadores aumente
@@ -217,10 +229,16 @@ debug-pipeline-on-join: false
 # Habilitar comprobaciones experimentales
 experimental-checks: false
 
+reset-item-usage-on-item-update: true
+reset-item-usage-on-attack: true
+reset-item-usage-on-slot-change: true
+
 # Grim a veces cancela paquetes ilegal como los de Timer. Después de X paquetes en un solo segundo cancelados,
 # cuando deberíamos simplemente expulsar al jugador? Esto es obligatorio ya que algunos limitadores de paquetes
 # no cuentan los paquetes cancelados por Grim.
 packet-spam-threshold: 100
+# Enable this to print a stacktrace when a player is kicked due to packet-spam-threshold
+debug-packet-cancel: false
 
 # Grim puede hacer cumplir que un jugador que no está en estado de vuelo no pueda tener más de X milisegundos de ping.
 # Esto se debe a que Grim actualmente no revisa a los jugadores que están volando.
@@ -231,4 +249,19 @@ max-ping-out-of-flying: 1000
 # This prevents high latency players from being able to use 1 firework boost with an elytra forever.
 max-ping-firework-boost: 1000
 
-config-version: 9
+history:
+  # How many entries should be shown for each page with /grim history <player>
+  entries-per-page: 15
+  # What should the inserted server name be for the history command? This is useful if you use the same database for multiple servers
+  server-name: Server-Name
+  database:
+    # Use SQLITE for local storage, use MYSQL if you have an external MySQL database. This is only updated on server restart
+    type: SQLITE
+    # MySQL connection details
+    host: localhost
+    port: 3306
+    database: grim
+    username: root
+    password: ""
+
+config-version: 10

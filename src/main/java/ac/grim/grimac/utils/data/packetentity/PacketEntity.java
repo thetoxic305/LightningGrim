@@ -16,21 +16,22 @@
 package ac.grim.grimac.utils.data.packetentity;
 
 import ac.grim.grimac.player.GrimPlayer;
+import ac.grim.grimac.utils.collisions.datatypes.CollisionBox;
 import ac.grim.grimac.utils.collisions.datatypes.SimpleCollisionBox;
 import ac.grim.grimac.utils.data.ReachInterpolationData;
 import ac.grim.grimac.utils.data.TrackedPosition;
 import ac.grim.grimac.utils.data.attribute.ValuedAttribute;
-import ac.grim.grimac.utils.nmsutil.GetBoundingBox;
 import com.github.retrooper.packetevents.protocol.attribute.Attribute;
 import com.github.retrooper.packetevents.protocol.attribute.Attributes;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityType;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
 import com.github.retrooper.packetevents.protocol.potion.PotionType;
 import com.github.retrooper.packetevents.util.Vector3d;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import lombok.Getter;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.OptionalInt;
@@ -54,7 +55,7 @@ public class PacketEntity extends TypedPacketEntity {
     private ReachInterpolationData oldPacketLocation;
     private ReachInterpolationData newPacketLocation;
 
-    private Map<PotionType, Integer> potionsMap = null;
+    private Object2IntMap<PotionType> potionsMap = null;
     protected final Map<Attribute, ValuedAttribute> attributeMap = new IdentityHashMap<>();
 
     public PacketEntity(GrimPlayer player, EntityType type) {
@@ -74,7 +75,7 @@ public class PacketEntity extends TypedPacketEntity {
             trackedServerPosition.setPos(new Vector3d(((int) (x * 32)) / 32d, ((int) (y * 32)) / 32d, ((int) (z * 32)) / 32d));
         }
         final Vector3d pos = trackedServerPosition.getPos();
-        this.newPacketLocation = new ReachInterpolationData(player, GetBoundingBox.getPacketEntityBoundingBox(player, pos.x, pos.y, pos.z, this), trackedServerPosition, this);
+        this.newPacketLocation = new ReachInterpolationData(player, new SimpleCollisionBox(pos.x, pos.y, pos.z, pos.x, pos.y, pos.z, false), trackedServerPosition, this);
     }
 
     protected void trackAttribute(ValuedAttribute valuedAttribute) {
@@ -85,11 +86,11 @@ public class PacketEntity extends TypedPacketEntity {
     }
 
     protected void initAttributes(GrimPlayer player) {
-        trackAttribute(ValuedAttribute.ranged(Attributes.GENERIC_SCALE, 1.0, 0.0625, 16)
+        trackAttribute(ValuedAttribute.ranged(Attributes.SCALE, 1.0, 0.0625, 16)
                 .requiredVersion(player, ClientVersion.V_1_20_5));
-        trackAttribute(ValuedAttribute.ranged(Attributes.GENERIC_STEP_HEIGHT, 0.6f, 0, 10)
+        trackAttribute(ValuedAttribute.ranged(Attributes.STEP_HEIGHT, 0.6f, 0, 10)
                 .requiredVersion(player, ClientVersion.V_1_20_5));
-        trackAttribute(ValuedAttribute.ranged(Attributes.GENERIC_GRAVITY, 0.08, -1, 1)
+        trackAttribute(ValuedAttribute.ranged(Attributes.GRAVITY, 0.08, -1, 1)
                 .requiredVersion(player, ClientVersion.V_1_20_5));
     }
 
@@ -142,9 +143,19 @@ public class PacketEntity extends TypedPacketEntity {
                 }
             }
         }
-
         this.oldPacketLocation = newPacketLocation;
         this.newPacketLocation = new ReachInterpolationData(player, oldPacketLocation.getPossibleLocationCombined(), trackedServerPosition, this);
+
+        // In versions < 1.16.2 when the client receives non-relative teleport for an entity
+        // And they move less by the thresholds given, the entity does not move client side
+        if (hasPos && !relative && player.getClientVersion().isOlderThanOrEquals(ClientVersion.V_1_16_1)) {
+            SimpleCollisionBox clientArea = newPacketLocation.getPossibleLocationCombined();
+            if (clientArea.distanceX(relX) < 0.03125D
+                    && clientArea.distanceY(relY) < 0.015625D
+                    && clientArea.distanceZ(relZ) < 0.03125D) {
+                newPacketLocation.expandNonRelative();
+            }
+        }
     }
 
     // Remove the possibility of the old packet location
@@ -181,15 +192,23 @@ public class PacketEntity extends TypedPacketEntity {
     }
 
     // This is for handling riding and entities attached to one another.
-    public void setPositionRaw(SimpleCollisionBox box) {
+    public void setPositionRaw(GrimPlayer player, SimpleCollisionBox box) {
         // I'm disappointed in you mojang.  Please don't set the packet position as it desyncs it...
         // But let's follow this flawed client-sided logic!
         this.trackedServerPosition.setPos(new Vector3d((box.maxX - box.minX) / 2 + box.minX, box.minY, (box.maxZ - box.minZ) / 2 + box.minZ));
         // This disables interpolation
-        this.newPacketLocation = new ReachInterpolationData(box);
+        this.newPacketLocation = new ReachInterpolationData(player, box, this);
     }
 
-    public SimpleCollisionBox getPossibleCollisionBoxes() {
+    public CollisionBox getMinimumPossibleCollisionBoxes() {
+        if (oldPacketLocation == null) {
+            return newPacketLocation.getOverlapHitboxCombined();
+        }
+
+        return ReachInterpolationData.getOverlapHitbox(oldPacketLocation.getOverlapHitboxCombined(), newPacketLocation.getOverlapHitboxCombined());
+    }
+
+    public SimpleCollisionBox getPossibleLocationBoxes() {
         if (oldPacketLocation == null) {
             return newPacketLocation.getPossibleLocationCombined();
         }
@@ -197,13 +216,21 @@ public class PacketEntity extends TypedPacketEntity {
         return ReachInterpolationData.combineCollisionBox(oldPacketLocation.getPossibleLocationCombined(), newPacketLocation.getPossibleLocationCombined());
     }
 
+    public SimpleCollisionBox getPossibleCollisionBoxes() {
+        if (oldPacketLocation == null) {
+            return newPacketLocation.getPossibleHitboxCombined();
+        }
+
+        return ReachInterpolationData.combineCollisionBox(oldPacketLocation.getPossibleHitboxCombined(), newPacketLocation.getPossibleHitboxCombined());
+    }
+
     public PacketEntity getRiding() {
         return riding;
     }
 
     public OptionalInt getPotionEffectLevel(PotionType effect) {
-        final Integer amplifier = potionsMap == null ? null : potionsMap.get(effect);
-        return amplifier == null ? OptionalInt.empty() : OptionalInt.of(amplifier);
+        final int amplifier = potionsMap == null ? -1 : potionsMap.getInt(effect);
+        return amplifier == -1 ? OptionalInt.empty() : OptionalInt.of(amplifier);
     }
 
     public boolean hasPotionEffect(PotionType effect) {
@@ -212,13 +239,14 @@ public class PacketEntity extends TypedPacketEntity {
 
     public void addPotionEffect(PotionType effect, int amplifier) {
         if (potionsMap == null) {
-            potionsMap = new HashMap<>();
+            potionsMap = new Object2IntOpenHashMap<>();
+            potionsMap.defaultReturnValue(-1);
         }
         potionsMap.put(effect, amplifier);
     }
 
     public void removePotionEffect(PotionType effect) {
         if (potionsMap == null) return;
-        potionsMap.remove(effect);
+        potionsMap.removeInt(effect);
     }
 }

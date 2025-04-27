@@ -1,6 +1,6 @@
 # GrimAC Hauptkonfiguration
 # Quellcode: https://github.com/MWHunter/Grim
-# Copyright 2024 DefineOutside und Mitwirkende, lizenziert unter GPLv3.
+# Copyright 2025 DefineOutside und Mitwirkende, lizenziert unter GPLv3.
 # Modifizierte Binärdateien, oder Plugins mit kopiertem Grim-Code, müssen privat sein,
 # oder mit vollständigem Quellcode für Käufer ohne zusätzliche Kosten verfügbar sein.
 
@@ -18,6 +18,8 @@ alerts:
 verbose:
   print-to-console: false
 
+check-for-updates: true
+
 client-brand:
   # Das bedeutet, dass die Marke nicht an die Betreiber weitergegeben wird, wenn die Marke mit den folgenden Regexes übereinstimmt
   ignored-clients:
@@ -25,6 +27,7 @@ client-brand:
     - "^fabric$"
     - "^lunarclient:v\\d+\\.\\d+\\.\\d+-\\d{4}$"
     - "^Feather Fabric$"
+    - "^labymod$"
 
 spectators:
   # Alle Zuschauer mit der Berechtigung grim.spectator ausblenden, unabhängig davon, ob sie tatsächlich aktiv zuschauen
@@ -63,6 +66,9 @@ Simulation:
   # Dies soll verhindern, dass der Spieler zu viele Verstöße sammelt und nie in der Lage ist, sie alle zu beseitigen.
   # Standard-Vorteilsgrenze (x-Achse = Sekunden, y-Achse = 1/1000 Block): https://www.desmos.com/calculator/4lovswdarj
   max-ceiling: 4
+  # Schwellenwert für die Verletzungsstufe für den Rückschlag
+  # 1 für das alte Verhalten
+  setback-violation-threshold: 1
 
 # Überprüft, ob ein Spieler während einer Bewegung einen Block betreten hat.
 Phase:
@@ -131,7 +137,7 @@ LineOfSightPlace:
 # Prediction-based no slow check
 # Grim ist verantwortlich für den fehlerhaften Netcode hier... schwer zu falsen, selbst wenn man Rechtsklick und Offhand-Taste spammt.
 # Viel stabiler als andere Anticheats, aber bitte melde alle Falses... Ich habe hier eine Menge Netcode-Probleme behoben.
-NoSlowA:
+NoSlow:
   # Wie viel von einem Offset ist "schummeln"
   # Standardmäßig ist dieser Wert niedriger als andere Offs.
   # Flags um 0,03-0,2 konsequent mit NoSlow on
@@ -179,8 +185,12 @@ TimerVehicle:
   # Ziel 1,005 Timer
   setbackvl: 10
 
-EntityControl:
+VehicleC:
   setbackvl: 25
+
+PacketOrderI:
+  # enable if players are getting flagged for using 1.7 animations mods
+  exempt-placing-while-digging: false
 
 Reach:
   # Um wie viel sollen wir die Hitboxen erweitern? 0,0005 sollte 3,0005+ Reichweite erkennen
@@ -191,6 +201,8 @@ Reach:
   # Sollten wir Treffer annullieren, von denen wir wissen, dass sie unmöglich sind?
   # 3.00-3.03-Treffer können aufgrund von Beschränkungen der Paketreihenfolge durchgehen, aber dennoch gekennzeichnet werden.
   block-impossible-hits: true
+  # Only apply reach checks if the target is a player
+  ignore-non-player-targets: false
   # Dies sendet ein zusätzliches Paket am Ende jedes Ticks, um die Wahrscheinlichkeit zu erhöhen, dass Betrüger erwischt werden.
   # Dies injiziert in die Verbindungsliste des Servers, um ein letztes Paket zu senden, kurz bevor der Server geleert wird.
   # Aktivieren dieser Funktion erhöht die Bandbreitennutzung für alle Spieler.
@@ -214,9 +226,15 @@ debug-pipeline-on-join: false
 # Aktiviert experimentelle Prüfungen
 experimental-checks: false
 
+reset-item-usage-on-item-update: true
+reset-item-usage-on-attack: true
+reset-item-usage-on-slot-change: true
+
 # Grim bricht manchmal illegale Pakete ab, z.B. mit Timer, nachdem X Pakete in einer Sekunde abgebrochen wurden, wann sollte
 # wir den Spieler einfach kicken? Dies ist erforderlich, da einige Paketbegrenzer die von Grim abgebrochenen Pakete nicht zählen.
 packet-spam-threshold: 100
+# Enable this to print a stacktrace when a player is kicked due to packet-spam-threshold
+debug-packet-cancel: false
 
 # Grim kann durchsetzen, dass ein Spieler, der aus dem Flugmodus genommen wird, nicht mehr als X Millisekunden Ping haben kann.
 # Dies liegt daran, dass Grim derzeit fliegende Spieler nicht überprüft.
@@ -227,4 +245,18 @@ max-ping-out-of-flying: 1000
 # This prevents high latency players from being able to use 1 firework boost with an elytra forever.
 max-ping-firework-boost: 1000
 
-config-version: 9
+config-version: 10
+history:
+  # How many entries should be shown for each page with /grim history <player>
+  entries-per-page: 15
+  # What should the inserted server name be for the history command? This is useful if you use the same database for multiple servers
+  server-name: Server-Name
+  database:
+    # Use SQLITE for local storage, use MYSQL if you have an external MySQL database. This is only updated on server restart
+    type: SQLITE
+    # MySQL connection details
+    host: localhost
+    port: 3306
+    database: grim
+    username: root
+    password: ""

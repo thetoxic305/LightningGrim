@@ -4,6 +4,7 @@ import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.manager.init.Initable;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.anticheat.LogUtil;
+import ac.grim.grimac.utils.anticheat.MessageUtil;
 import club.minnced.discord.webhook.WebhookClient;
 import club.minnced.discord.webhook.send.WebhookEmbed;
 import club.minnced.discord.webhook.send.WebhookEmbedBuilder;
@@ -70,13 +71,13 @@ public class DiscordManager implements Initable {
         return list;
     }
 
-    public void sendAlert(GrimPlayer player, String verbose, String checkName, String violations) {
+    public void sendAlert(GrimPlayer player, String verbose, String checkName, int violations) {
         if (client != null) {
 
             String content = staticContent;
             content = content.replace("%check%", checkName);
-            content = content.replace("%violations%", violations);
-            content = GrimAPI.INSTANCE.getExternalAPI().replaceVariables(player, content, false);
+            content = content.replace("%violations%", Integer.toString(violations));
+            content = MessageUtil.replacePlaceholders(player, content);
             content = content.replace("_", "\\_");
 
             WebhookEmbedBuilder embed = new WebhookEmbedBuilder()

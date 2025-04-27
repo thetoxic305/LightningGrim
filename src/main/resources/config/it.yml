@@ -1,6 +1,6 @@
 # GrimAC main configuration
 # Source code: https://github.com/MWHunter/Grim
-# Copyright 2024 DefineOutside and contributors, Licensed under GPLv3.
+# Copyright 2025 DefineOutside and contributors, Licensed under GPLv3.
 # Modified binaries, or plugins with copied grim code, must be private,
 # or with full source code available to buyers at no additional cost.
 
@@ -19,6 +19,8 @@ verbose:
   # Mostra dettagli su console?
   print-to-console: false
 
+check-for-updates: true
+
 client-brand:
   # Ignora i seguenti client nella trasmissione del marchio agli operatori
   ignored-clients:
@@ -26,6 +28,7 @@ client-brand:
     - "^fabric$"
     - "^lunarclient:v\\d+\\.\\d+\\.\\d+-\\d{4}$"
     - "^Feather Fabric$"
+    - "^labymod$"
 
 spectators:
   # Nascondi tutti gli spettatori con il permesso grim.spectator indipendentemente dal fatto che stiano effettivamente spettando attivamente
@@ -55,6 +58,9 @@ Simulation:
   max-advantage: 1
   # Limite massimo di vantaggio accumulabile prima di arretrare il giocatore
   max-ceiling: 4
+  # Soglia del livello di violazione per il setback
+  # 1 per il comportamento precedente
+  setback-violation-threshold: 1
 
 Phase:
   # Livello di violazione per il glitch nel blocco
@@ -125,7 +131,7 @@ LineOfSightPlace:
     - STRUCTURE_BLOCK
     - JIGSAW
 
-NoSlowA:
+NoSlow:
   # Limite per rilevare l'uso scorretto dell'oggetto
   threshold: 0.001
   # Livello di violazione per l'uso scorretto dell'oggetto
@@ -171,11 +177,17 @@ EntityControl:
   # Livello di violazione per il controllo entità
   setbackvl: 25
 
+PacketOrderI:
+  # enable if players are getting flagged for using 1.7 animations mods
+  exempt-placing-while-digging: false
+
 Reach:
   # Limite per rilevare un attacco oltre la distanza massima
   threshold: 0.0005
   # Annulla gli attacchi impossibili
   block-impossible-hits: true
+  # Only apply reach checks if the target is a player
+  ignore-non-player-targets: false
   # Abilita l'invio di pacchetti aggiuntivi per il rilevamento degli attacchi
   enable-post-packet: false
 
@@ -193,9 +205,15 @@ debug-pipeline-on-join: false
 # Enables experimental checks
 experimental-checks: false
 
+reset-item-usage-on-item-update: true
+reset-item-usage-on-attack: true
+reset-item-usage-on-slot-change: true
+
 # Grim sometimes cancels illegal packets such as with timer, after X packets in a second cancelled, when should
 # we simply kick the player? This is required as some packet limiters don't count packets cancelled by grim.
 packet-spam-threshold: 100
+# Enable this to print a stacktrace when a player is kicked due to packet-spam-threshold
+debug-packet-cancel: false
 
 # Grim is able to enforce that a player set out of flying state cannot have more than X milliseconds of ping
 # This is due to Grim not currently checking flying players
@@ -206,4 +224,19 @@ max-ping-out-of-flying: 1000
 # This prevents high latency players from being able to use 1 firework boost with an elytra forever.
 max-ping-firework-boost: 1000
 
-config-version: 9
+history:
+  # How many entries should be shown for each page with /grim history <player>
+  entries-per-page: 15
+  # What should the inserted server name be for the history command? This is useful if you use the same database for multiple servers
+  server-name: Server-Name
+  database:
+    # Use SQLITE for local storage, use MYSQL if you have an external MySQL database. This is only updated on server restart
+    type: SQLITE
+    # MySQL connection details
+    host: localhost
+    port: 3306
+    database: grim
+    username: root
+    password: ""
+
+config-version: 10

@@ -3,7 +3,8 @@ package ac.grim.grimac.utils.data.tags;
 import com.github.retrooper.packetevents.resources.ResourceLocation;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerTags;
 
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -12,10 +13,12 @@ public final class SyncedTag<T> {
     private final ResourceLocation location;
     private final Set<T> values;
     private final Function<Integer, T> remapper;
+    private final boolean supported;
 
-    private SyncedTag(ResourceLocation location, Function<Integer, T> remapper, Set<T> defaultValues) {
+    private SyncedTag(ResourceLocation location, Function<Integer, T> remapper, Set<T> defaultValues, boolean supported) {
         this.location = location;
-        this.values = new HashSet<>();
+        this.supported = supported;
+        this.values = Collections.newSetFromMap(new IdentityHashMap<>());
         this.remapper = remapper;
         this.values.addAll(defaultValues);
     }
@@ -33,6 +36,8 @@ public final class SyncedTag<T> {
     }
 
     public void readTagValues(WrapperPlayServerTags.Tag tag) {
+        if (!supported) return;
+
         // Server is sending tag replacement, clear default values.
         values.clear();
         for (int id : tag.getValues()) {
@@ -44,6 +49,7 @@ public final class SyncedTag<T> {
         private final ResourceLocation location;
         private Function<Integer, T> remapper;
         private Set<T> defaultValues;
+        private boolean supported = true;
 
         private Builder(ResourceLocation location) {
             this.location = location;
@@ -54,13 +60,18 @@ public final class SyncedTag<T> {
             return this;
         }
 
+        public Builder<T> supported(boolean supported) {
+            this.supported = supported;
+            return this;
+        }
+
         public Builder<T> defaults(Set<T> defaultValues) {
             this.defaultValues = defaultValues;
             return this;
         }
 
         public SyncedTag<T> build() {
-            return new SyncedTag<>(location, remapper, defaultValues);
+            return new SyncedTag<>(location, remapper, defaultValues, supported);
         }
     }
 }

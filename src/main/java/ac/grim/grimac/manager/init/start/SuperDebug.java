@@ -12,6 +12,8 @@ import ac.grim.grimac.utils.lists.EvictingQueue;
 import ac.grim.grimac.utils.math.GrimMath;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.protocol.world.states.WrappedBlockState;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import lombok.AllArgsConstructor;
 import org.bukkit.util.Vector;
 
@@ -20,7 +22,7 @@ import java.util.*;
 public final class SuperDebug extends Check implements PostPredictionCheck {
     private static final StringBuilder[] flags = new StringBuilder[256]; //  17 MB of logs in memory
 
-    Map<StringBuilder, Integer> continuedDebug = new HashMap<>();
+    Object2IntMap<StringBuilder> continuedDebug = new Object2IntOpenHashMap<>();
 
     List<VectorData> predicted = new EvictingQueue<>(60);
     List<Vector> actually = new EvictingQueue<>(60);
@@ -45,7 +47,7 @@ public final class SuperDebug extends Check implements PostPredictionCheck {
 
         Location location = new Location(player.x, player.y, player.z, player.xRot, player.yRot, player.bukkitPlayer == null ? "null" : player.bukkitPlayer.getWorld().getName());
 
-        for (Iterator<Map.Entry<StringBuilder, Integer>> it = continuedDebug.entrySet().iterator(); it.hasNext(); ) {
+        for (Iterator<Object2IntMap.Entry<StringBuilder>> it = continuedDebug.object2IntEntrySet().iterator(); it.hasNext(); ) {
             Map.Entry<StringBuilder, Integer> debug = it.next();
             appendDebug(debug.getKey(), player.predictedVelocity, player.actualMovement, location, player.startTickClientVel, player.baseTickAddition, player.baseTickWaterPushing);
             debug.setValue(debug.getValue() - 1);
@@ -123,7 +125,7 @@ public final class SuperDebug extends Check implements PostPredictionCheck {
         sb.append("\nLava: ");
         sb.append(player.wasTouchingLava);
         sb.append("\nVehicle: ");
-        sb.append(player.compensatedEntities.getSelf().inVehicle());
+        sb.append(player.inVehicle());
 
         sb.append("\n\n");
         sb.append("Bounding box: ");
@@ -151,7 +153,7 @@ public final class SuperDebug extends Check implements PostPredictionCheck {
                 maxPosLength = (int) Math.max(maxPosLength, Math.ceil(Math.log10(Math.abs(z))));
                 for (int x = GrimMath.floor(player.boundingBox.minX) - 2; x <= GrimMath.ceil(player.boundingBox.maxX) + 2; x++) {
                     maxPosLength = (int) Math.max(maxPosLength, Math.ceil(Math.log10(Math.abs(x))));
-                    WrappedBlockState block = player.compensatedWorld.getWrappedBlockStateAt(x, y, z);
+                    WrappedBlockState block = player.compensatedWorld.getBlock(x, y, z);
                     maxLength = Math.max(block.toString().replace("minecraft:", "").length(), maxLength);
                 }
             }
@@ -174,7 +176,7 @@ public final class SuperDebug extends Check implements PostPredictionCheck {
             for (int z = GrimMath.floor(player.boundingBox.minZ) - 2; z <= GrimMath.ceil(player.boundingBox.maxZ) + 2; z++) {
                 sb.append(String.format("%-" + maxPosLength + "s", "z: " + z + " "));
                 for (int x = GrimMath.floor(player.boundingBox.minX) - 2; x <= GrimMath.ceil(player.boundingBox.maxX) + 2; x++) {
-                    WrappedBlockState block = player.compensatedWorld.getWrappedBlockStateAt(x, y, z);
+                    WrappedBlockState block = player.compensatedWorld.getBlock(x, y, z);
                     sb.append(String.format("%-" + maxLength + "s", block.toString().replace("minecraft:", "")));
                 }
                 sb.append("\n");

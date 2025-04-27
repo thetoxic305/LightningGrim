@@ -1,7 +1,6 @@
 package ac.grim.grimac.events.packets;
 
 import ac.grim.grimac.GrimAPI;
-import ac.grim.grimac.checks.impl.movement.NoSlowD;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.nmsutil.WatchableIndexUtil;
 import com.github.retrooper.packetevents.PacketEvents;
@@ -64,7 +63,7 @@ public class PacketSelfMetadataListener extends PacketListenerAbstract {
                 //
                 // It makes no sense to me why mojang is doing this, it has to be a bug.
                 if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_14)) {
-                    List<EntityData> metadataStuff = entityMetadata.getEntityMetadata();
+                    List<EntityData<?>> metadataStuff = entityMetadata.getEntityMetadata();
 
                     // Remove the pose metadata from the list
                     metadataStuff.removeIf(element -> element.getIndex() == 6);
@@ -72,7 +71,7 @@ public class PacketSelfMetadataListener extends PacketListenerAbstract {
                     event.markForReEncode(true);
                 }
 
-                EntityData watchable = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), 0);
+                EntityData<?> watchable = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), 0);
 
                 if (watchable != null) {
                     Object zeroBitField = watchable.getValue();
@@ -99,7 +98,7 @@ public class PacketSelfMetadataListener extends PacketListenerAbstract {
                 }
 
                 if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_9)) {
-                    EntityData gravity = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), 5);
+                    EntityData<?> gravity = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), 5);
 
                     if (gravity != null) {
                         Object gravityObject = gravity.getValue();
@@ -118,7 +117,7 @@ public class PacketSelfMetadataListener extends PacketListenerAbstract {
                 }
 
                 if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_17)) {
-                    EntityData frozen = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), 7);
+                    EntityData<?> frozen = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), 7);
 
                     if (frozen != null) {
                         if (!hasSendTransaction) player.sendTransaction();
@@ -140,7 +139,7 @@ public class PacketSelfMetadataListener extends PacketListenerAbstract {
                         id = 14; // 1.17 changed this to 14
                     }
 
-                    EntityData bedObject = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), id);
+                    EntityData<?> bedObject = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), id);
                     if (bedObject != null) {
                         if (!hasSendTransaction) player.sendTransaction();
                         hasSendTransaction = true;
@@ -160,7 +159,7 @@ public class PacketSelfMetadataListener extends PacketListenerAbstract {
 
                 if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_13) &&
                         player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_9)) {
-                    EntityData riptide = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_17) ? 8 : 7);
+                    EntityData<?> riptide = WatchableIndexUtil.getIndex(entityMetadata.getEntityMetadata(), PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_17) ? 8 : 7);
 
                     // This one only present if it changed
                     if (riptide != null && riptide.getValue() instanceof Byte) {
@@ -208,8 +207,6 @@ public class PacketSelfMetadataListener extends PacketListenerAbstract {
                                     PacketPlayerDigging.handleUseItem(player, item, isOffhand ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND);
                                     // The above line is a hack to fake activate use item
                                     player.packetStateData.setSlowedByUsingItem(isActive);
-
-                                    player.checkManager.getPostPredictionCheck(NoSlowD.class).startedSprintingBeforeUse = player.packetStateData.isSlowedByUsingItem() && player.isSprinting;
 
                                     if (isActive) {
                                         player.packetStateData.eatingHand = isOffhand ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;

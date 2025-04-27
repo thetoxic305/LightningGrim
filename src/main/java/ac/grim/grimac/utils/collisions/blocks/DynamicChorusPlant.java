@@ -31,7 +31,7 @@ public class DynamicChorusPlant implements CollisionFactory {
         float f = 0.5F - (float) 0.3125;
         float f1 = 0.5F + (float) 0.3125;
         SimpleCollisionBox baseShape = new SimpleCollisionBox(f, f, f, f1, f1, f1, false);
-        CollisionBox[] avoxelshape = new CollisionBox[directions.length];
+        SimpleCollisionBox[] avoxelshape = new SimpleCollisionBox[directions.length];
 
         for (int i = 0; i < directions.length; ++i) {
             BlockFace direction = directions[i];
@@ -41,7 +41,7 @@ public class DynamicChorusPlant implements CollisionFactory {
         CollisionBox[] avoxelshape1 = new CollisionBox[64];
 
         for (int k = 0; k < 64; ++k) {
-            ComplexCollisionBox directionalShape = new ComplexCollisionBox(baseShape);
+            ComplexCollisionBox directionalShape = new ComplexCollisionBox(7, baseShape); // how big is this one??
 
             for (int j = 0; j < directions.length; ++j) {
                 if ((k & 1 << j) != 0) {
@@ -106,12 +106,12 @@ public class DynamicChorusPlant implements CollisionFactory {
         // 1.13 clients on 1.12 servers don't see chorus flowers attached to chorus because of a ViaVersion bug
         StateType versionFlower = version.isOlderThanOrEquals(ClientVersion.V_1_12_2) ? StateTypes.CHORUS_FLOWER : null;
 
-        StateType downBlock = player.compensatedWorld.getStateTypeAt(x, y - 1, z);
-        StateType upBlock = player.compensatedWorld.getStateTypeAt(x, y + 1, z);
-        StateType northBlock = player.compensatedWorld.getStateTypeAt(x, y, z - 1);
-        StateType eastBlock = player.compensatedWorld.getStateTypeAt(x + 1, y, z);
-        StateType southBlock = player.compensatedWorld.getStateTypeAt(x, y, z + 1);
-        StateType westBlock = player.compensatedWorld.getStateTypeAt(x - 1, y, z);
+        StateType downBlock = player.compensatedWorld.getBlockType(x, y - 1, z);
+        StateType upBlock = player.compensatedWorld.getBlockType(x, y + 1, z);
+        StateType northBlock = player.compensatedWorld.getBlockType(x, y, z - 1);
+        StateType eastBlock = player.compensatedWorld.getBlockType(x + 1, y, z);
+        StateType southBlock = player.compensatedWorld.getBlockType(x, y, z + 1);
+        StateType westBlock = player.compensatedWorld.getBlockType(x - 1, y, z);
 
         if (downBlock == StateTypes.CHORUS_PLANT || downBlock == versionFlower || downBlock == StateTypes.END_STONE) {
             faces.add(BlockFace.DOWN);

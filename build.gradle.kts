@@ -3,28 +3,62 @@ import net.minecrell.pluginyml.bukkit.BukkitPluginDescription.Permission
 plugins {
     id("java")
     id("maven-publish")
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.gradleup.shadow") version "9.0.0-beta6"
     id("io.freefair.lombok") version "8.6"
     id("net.minecrell.plugin-yml.bukkit") version "0.6.0"
+    id("com.diffplug.spotless") version "6.25.0"
+}
+
+spotless {
+    java {
+        endWithNewline()
+        indentWithSpaces(4)
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        targetExclude("build/generated/**/*")
+    }
+
+    kotlinGradle {
+        endWithNewline()
+        indentWithSpaces(4)
+        trimTrailingWhitespace()
+    }
 }
 
 group = "ac.grim.grimac"
-version = "2.3.69"
+version = "2.3.72"
 description = "Libre simulation anticheat designed for 1.21 with 1.8-1.21 support, powered by PacketEvents 2.0."
 java.sourceCompatibility = JavaVersion.VERSION_1_8
 java.targetCompatibility = JavaVersion.VERSION_1_8
 
 // Set to false for debug builds
 // You cannot live reload classes if the jar relocates dependencies
-var relocate = true;
+// Checks Project properties -> environment variable -> defaults true
+val relocate: Boolean = project.findProperty("relocate")?.toString()?.toBoolean()
+    ?: System.getenv("RELOCATE_JAR")?.toBoolean()
+    ?: true
+
+// Whether or not to shade PE into the jar, some servers may not want this if they use other plugins
+// With PE; this prevents duplicate listening and reduces RAM usage by ~80-100 MB
+val shadePE: Boolean = project.findProperty("shadePE")?.toString()?.toBoolean()
+    ?: System.getenv("SHADE_PE")?.toBoolean()
+    ?: true
 
 repositories {
     mavenLocal()
+    maven {
+        name = "papermc"
+        url = uri("https://repo.papermc.io/repository/maven-public/")
+    }
     maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/") // Spigot
     maven("https://jitpack.io/") { // Grim API
         content {
             includeGroup("com.github.grimanticheat")
         }
+    }
+    maven {
+        name = "grimacSnapshots"
+        url = uri("https://repo.grim.ac/snapshots")
     }
     maven("https://repo.viaversion.com") // ViaVersion
     maven("https://repo.aikar.co/content/groups/aikar/") // ACF
@@ -33,26 +67,38 @@ repositories {
     maven("https://repo.opencollab.dev/maven-releases/") // Cumulus (for Floodgate)
     maven("https://repo.codemc.io/repository/maven-releases/") // PacketEvents
     maven("https://repo.codemc.io/repository/maven-snapshots/")
+    maven("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/") // placeholderapi
     mavenCentral()
     // FastUtil, Discord-Webhooks
 }
 
 dependencies {
-    implementation("com.github.retrooper:packetevents-spigot:2.5.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.20.6-R0.1-SNAPSHOT")
+    // PE dependency is now conditional
+    if (shadePE) {
+        implementation("com.github.retrooper:packetevents-spigot:2.8.0-SNAPSHOT")
+    } else {
+        compileOnly("com.github.retrooper:packetevents-spigot:2.8.0-SNAPSHOT")
+    }
     implementation("co.aikar:acf-paper:0.5.1-SNAPSHOT")
     implementation("club.minnced:discord-webhooks:0.8.0") // Newer versions include kotlin-stdlib, which leads to incompatibility with plugins that use Kotlin
-    implementation("it.unimi.dsi:fastutil:8.5.13")
+    implementation("it.unimi.dsi:fastutil:8.5.15")
     implementation("github.scarsz:configuralize:1.4.0")
+    implementation("com.zaxxer:HikariCP:4.0.3")
 
-    //implementation("com.github.grimanticheat:grimapi:1193c4fa41")
-    // Used for local testing: implementation("ac.grim.grimac:GRIMAPI:1.0")
-    implementation("com.github.grimanticheat:grimapi:fc5634e444")
+
+    // Used for local testing:
+    //implementation("ac.grim.grimac:GrimAPI:1.0")
+    implementation("ac.grim.grimac:GrimAPI:05e31d62f2")
+
+    implementation("net.kyori:adventure-text-minimessage:4.20.0")
+    implementation("net.kyori:adventure-platform-bukkit:4.3.4")
 
     implementation("org.jetbrains:annotations:24.1.0")
     compileOnly("org.geysermc.floodgate:api:2.0-SNAPSHOT")
-    compileOnly("org.spigotmc:spigot-api:1.18.2-R0.1-SNAPSHOT")
     compileOnly("com.viaversion:viaversion-api:5.0.4-SNAPSHOT")
-    //
+    compileOnly("me.clip:placeholderapi:2.11.6")
     compileOnly("io.netty:netty-all:4.1.85.Final")
 }
 
@@ -64,6 +110,10 @@ bukkit {
     apiVersion = "1.13"
     foliaSupported = true
 
+    if (!shadePE) {
+        depend = listOf("packetevents") + (depend ?: emptyList())
+    }
+
     softDepend = listOf(
         "ProtocolLib",
         "ProtocolSupport",
@@ -73,7 +123,8 @@ bukkit {
         "ViaRewind",
         "Geyser-Spigot",
         "floodgate",
-        "FastLogin"
+        "FastLogin",
+        "PlaceholderAPI",
     )
 
     permissions {
@@ -102,6 +153,11 @@ bukkit {
             default = Permission.Default.OP
         }
 
+        register("grim.brand.enable-on-join") {
+            description = "Enable showing client brands on join"
+            default = Permission.Default.OP
+        }
+
         register("grim.sendalert") {
             description = "Send cheater alert"
             default = Permission.Default.OP
@@ -121,15 +177,31 @@ bukkit {
             description = "Exempt from all checks"
             default = Permission.Default.FALSE
         }
+
+        register("grim.verbose") {
+            description = "Receive verbose alerts for violations. Requires grim.alerts"
+            default = Permission.Default.OP
+        }
+
+        register("grim.verbose.enable-on-join") {
+            description = "Enable verbose alerts on join. Requires grim.alerts and grim.alerts.enable-on-join"
+            default = Permission.Default.FALSE
+        }
     }
 }
 
 tasks.build {
     dependsOn(tasks.shadowJar)
+    dependsOn(tasks.spotlessApply)
 }
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
+}
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+    disableAutoTargetJvm()
 }
 
 publishing.publications.create<MavenPublication>("maven") {
@@ -137,11 +209,20 @@ publishing.publications.create<MavenPublication>("maven") {
 }
 
 tasks.shadowJar {
+    manifest {
+        attributes["paperweight-mappings-namespace"] = "mojang"
+    }
+
     minimize()
-    archiveFileName.set("${project.name}-${project.version}.jar")
+    archiveFileName.set("${project.name}-${project.version}${if (shadePE) "" else "-lite"}.jar")
     if (relocate) {
-        relocate("io.github.retrooper.packetevents", "ac.grim.grimac.shaded.io.github.retrooper.packetevents")
-        relocate("com.github.retrooper.packetevents", "ac.grim.grimac.shaded.com.github.retrooper.packetevents")
+        // Only relocate PE if we're shading it
+        if (shadePE) {
+            relocate("io.github.retrooper.packetevents", "ac.grim.grimac.shaded.io.github.retrooper.packetevents")
+            relocate("com.github.retrooper.packetevents", "ac.grim.grimac.shaded.com.github.retrooper.packetevents")
+            exclude("assets/mappings") // Exclude new PE mappings folder
+            relocate("net.kyori", "ac.grim.grimac.shaded.kyori") // use PE's built-in adventure instead when not shading
+        }
         relocate("co.aikar.commands", "ac.grim.grimac.shaded.acf")
         relocate("co.aikar.locale", "ac.grim.grimac.shaded.locale")
         relocate("club.minnced", "ac.grim.grimac.shaded.discord-webhooks")
@@ -150,12 +231,13 @@ tasks.shadowJar {
         relocate("com.google.code.gson", "ac.grim.grimac.shaded.gson")
         relocate("alexh", "ac.grim.grimac.shaded.maps")
         relocate("it.unimi.dsi.fastutil", "ac.grim.grimac.shaded.fastutil")
-        relocate("net.kyori", "ac.grim.grimac.shaded.kyori")
         relocate("okhttp3", "ac.grim.grimac.shaded.okhttp3")
         relocate("okio", "ac.grim.grimac.shaded.okio")
         relocate("org.yaml.snakeyaml", "ac.grim.grimac.shaded.snakeyaml")
         relocate("org.json", "ac.grim.grimac.shaded.json")
         relocate("org.intellij", "ac.grim.grimac.shaded.intellij")
         relocate("org.jetbrains", "ac.grim.grimac.shaded.jetbrains")
+        relocate("com.zaxxer", "ac.grim.grimac.shaded.zaxxer")
+        relocate("org.slf4j", "ac.grim.grimac.shaded.slf4j")
     }
 }

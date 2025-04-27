@@ -1,9 +1,9 @@
 package ac.grim.grimac.events.packets;
 
 import ac.grim.grimac.GrimAPI;
-import ac.grim.grimac.checks.impl.movement.NoSlowA;
-import ac.grim.grimac.checks.impl.movement.NoSlowD;
+import ac.grim.grimac.checks.impl.movement.NoSlow;
 import ac.grim.grimac.player.GrimPlayer;
+import ac.grim.grimac.utils.nmsutil.BukkitNMS;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
@@ -11,6 +11,7 @@ import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.manager.server.ServerVersion;
 import com.github.retrooper.packetevents.protocol.component.ComponentTypes;
 import com.github.retrooper.packetevents.protocol.component.builtin.item.FoodProperties;
+import com.github.retrooper.packetevents.protocol.component.builtin.item.ItemConsumable;
 import com.github.retrooper.packetevents.protocol.item.ItemStack;
 import com.github.retrooper.packetevents.protocol.item.enchantment.type.EnchantmentTypes;
 import com.github.retrooper.packetevents.protocol.item.type.ItemType;
@@ -23,7 +24,6 @@ import com.github.retrooper.packetevents.protocol.player.GameMode;
 import com.github.retrooper.packetevents.protocol.player.InteractionHand;
 import com.github.retrooper.packetevents.protocol.world.BlockFace;
 import com.github.retrooper.packetevents.wrapper.play.client.*;
-import org.bukkit.Bukkit;
 
 public class PacketPlayerDigging extends PacketListenerAbstract {
 
@@ -37,15 +37,24 @@ public class PacketPlayerDigging extends PacketListenerAbstract {
             return;
         }
 
-        final ItemType material = item.getType();
-
-        if (player.checkManager.getCompensatedCooldown().hasMaterial(material)) {
+        if (player.checkManager.getCompensatedCooldown().hasItem(item)) {
             player.packetStateData.setSlowedByUsingItem(false); // resync, not required
             return; // The player has a cooldown, and therefore cannot use this item!
         }
 
-        // Check for data component stuff on 1.20.5+
+        final ItemType material = item.getType();
+
+        // Check for data component stuff on 1.21.2+
+        final ItemConsumable consumable = item.getComponentOr(ComponentTypes.CONSUMABLE, null);
         final FoodProperties foodComponent = item.getComponentOr(ComponentTypes.FOOD, null);
+
+        // The food component can override the consumable component, as it provides conditions for using the item
+        if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_21_2) && consumable != null && foodComponent == null) {
+            player.packetStateData.setSlowedByUsingItem(true);
+            player.packetStateData.eatingHand = hand;
+        }
+
+        // Check for data component stuff on 1.20.5+
         if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_20_5) && foodComponent != null) {
             if (foodComponent.isCanAlwaysEat() || player.food < 20 || player.gamemode == GameMode.CREATIVE) {
                 player.packetStateData.setSlowedByUsingItem(true);
@@ -115,17 +124,15 @@ public class PacketPlayerDigging extends PacketListenerAbstract {
         // Players in survival can't use a bow without an arrow
         // Crossbow charge checked previously
         if (material == ItemTypes.BOW || material == ItemTypes.CROSSBOW) {
-                /*player.packetStateData.slowedByUsingItem = player.gamemode == GameMode.CREATIVE ||
-                        player.getInventory().hasItemType(ItemTypes.ARROW) ||
-                        player.getInventory().hasItemType(ItemTypes.TIPPED_ARROW) ||
-                        player.getInventory().hasItemType(ItemTypes.SPECTRAL_ARROW);
-                player.packetStateData.eatingHand = place.getHand();*/
+            boolean isSlowedByUsingItem = player.gamemode == GameMode.CREATIVE ||
+                    player.getInventory().hasAnyOfItemType(ItemTypes.ARROW, ItemTypes.TIPPED_ARROW, ItemTypes.SPECTRAL_ARROW);
+            player.packetStateData.eatingHand = hand;
             // TODO: How do we lag compensate arrows? Mojang removed idle packet.
             // I think we may have to cancel the bukkit event if the player isn't slowed
             // On 1.8, it wouldn't be too bad to handle bows correctly
             // But on 1.9+, no idle packet and clients/servers don't agree on bow status
             // Mojang pls fix
-            player.packetStateData.setSlowedByUsingItem(false);
+            player.packetStateData.setSlowedByUsingItem(isSlowedByUsingItem);
         }
 
         if (material == ItemTypes.SPYGLASS && player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_17)) {
@@ -170,14 +177,16 @@ public class PacketPlayerDigging extends PacketListenerAbstract {
             }
         }
 
-        if (WrapperPlayClientPlayerFlying.isFlying(event.getPacketType())) {
+        if (WrapperPlayClientPlayerFlying.isFlying(event.getPacketType()) || event.getPacketType() == PacketType.Play.Client.CLIENT_TICK_END) {
             final GrimPlayer player = GrimAPI.INSTANCE.getPlayerDataManager().getPlayer(event.getUser());
-            if (player == null) return;
-
-            if (!player.packetStateData.lastPacketWasTeleport && !player.packetStateData.lastPacketWasOnePointSeventeenDuplicate) {
-                if (player.packetStateData.isSlowedByUsingItem() && player.packetStateData.eatingHand != InteractionHand.OFF_HAND && player.packetStateData.getSlowedByUsingItemSlot() != player.packetStateData.lastSlotSelected) {
+            if (player != null && player.packetStateData.isSlowedByUsingItem()
+                    && !player.packetStateData.lastPacketWasTeleport
+                    && !player.packetStateData.lastPacketWasOnePointSeventeenDuplicate) {
+                if (player.packetStateData.eatingHand != InteractionHand.OFF_HAND
+                        && player.packetStateData.getSlowedByUsingItemSlot() != player.packetStateData.lastSlotSelected
+                        || player.getInventory().getItemInHand(player.packetStateData.eatingHand).isEmpty()) {
                     player.packetStateData.setSlowedByUsingItem(false);
-                    player.checkManager.getPostPredictionCheck(NoSlowA.class).didSlotChangeLastTick = true;
+                    player.checkManager.getPostPredictionCheck(NoSlow.class).didSlotChangeLastTick = true;
                 }
             }
         }
@@ -191,12 +200,17 @@ public class PacketPlayerDigging extends PacketListenerAbstract {
             final GrimPlayer player = GrimAPI.INSTANCE.getPlayerDataManager().getPlayer(event.getUser());
             if (player == null) return;
 
+            // do we need to do this with block breaks too?
             // Prevent issues if the player switches slots, while lagging, standing still, and is placing blocks
             CheckManagerListener.handleQueuedPlaces(player, false, 0, 0, System.currentTimeMillis());
 
-            if (player.packetStateData.lastSlotSelected != slot) {
+            if (player.packetStateData.lastSlotSelected != slot && player.packetStateData.eatingHand != InteractionHand.OFF_HAND) {
+                if (player.isResetItemUsageOnSlotChange()) {
+                    BukkitNMS.resetItemUsage(player.bukkitPlayer);
+                }
+
                 // just assume they tick after this
-                if (!player.isTickingReliablyFor(3) && player.skippedTickInActualMovement && player.packetStateData.eatingHand != InteractionHand.OFF_HAND) {
+                if (player.canSkipTicks() && !player.isTickingReliablyFor(3)) {
                     player.packetStateData.setSlowedByUsingItem(false);
                 }
             }
@@ -223,10 +237,6 @@ public class PacketPlayerDigging extends PacketListenerAbstract {
             final boolean wasSlow = player.packetStateData.isSlowedByUsingItem();
 
             handleUseItem(player, item, hand);
-
-            if (!wasSlow) {
-                player.checkManager.getPostPredictionCheck(NoSlowD.class).startedSprintingBeforeUse = player.packetStateData.isSlowedByUsingItem() && player.isSprinting;
-            }
         }
     }
 }

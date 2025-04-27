@@ -3,6 +3,7 @@ package ac.grim.grimac.events.packets;
 import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.checks.impl.badpackets.BadPacketsE;
 import ac.grim.grimac.checks.impl.badpackets.BadPacketsF;
+import ac.grim.grimac.checks.impl.badpackets.BadPacketsG;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.data.TrackerData;
 import ac.grim.grimac.utils.data.packetentity.PacketEntitySelf;
@@ -55,11 +56,19 @@ public class PacketPlayerRespawn extends PacketListenerAbstract {
 
     private boolean hasFlag(WrapperPlayServerRespawn respawn, byte flag) {
         // This packet was added in 1.16
-        // On versions older than 1.15, via does not keep all data.
-        // https://github.com/ViaVersion/ViaVersion/blob/master/common/src/main/java/com/viaversion/viaversion/protocols/v1_15_2to1_16/rewriter/EntityPacketRewriter1_16.java#L124
-        if (PacketEvents.getAPI().getServerManager().getVersion().isOlderThan(ServerVersion.V_1_15)) {
-            return false;
+        if (flag == KEEP_ATTRIBUTES) {
+            // On versions older than 1.15, via does not keep all attributes.
+            // https://github.com/ViaVersion/ViaVersion/blob/master/common/src/main/java/com/viaversion/viaversion/protocols/v1_15_2to1_16/rewriter/EntityPacketRewriter1_16.java#L124
+            if (PacketEvents.getAPI().getServerManager().getVersion().isOlderThan(ServerVersion.V_1_15)) {
+                return false;
+            }
+        } else if (flag == KEEP_TRACKED_DATA) {
+            // But for metadata, via DOES keep all data
+            if (PacketEvents.getAPI().getServerManager().getVersion().isOlderThan(ServerVersion.V_1_15)) {
+                return true;
+            }
         }
+
         return (respawn.getKeptData() & flag) != 0;
     }
 
@@ -89,9 +98,9 @@ public class PacketPlayerRespawn extends PacketListenerAbstract {
             }
 
             if (health.getHealth() <= 0) {
-                player.latencyUtils.addRealTimeTask(player.lastTransactionSent.get(), () -> player.compensatedEntities.getSelf().isDead = true);
+                player.latencyUtils.addRealTimeTask(player.lastTransactionSent.get(), () -> player.compensatedEntities.self.isDead = true);
             } else {
-                player.latencyUtils.addRealTimeTask(player.lastTransactionSent.get() + 1, () -> player.compensatedEntities.getSelf().isDead = false);
+                player.latencyUtils.addRealTimeTask(player.lastTransactionSent.get() + 1, () -> player.compensatedEntities.self.isDead = false);
             }
 
             event.getTasksAfterSend().add(player::sendTransaction);
@@ -131,7 +140,11 @@ public class PacketPlayerRespawn extends PacketListenerAbstract {
             }
 
             player.latencyUtils.addRealTimeTask(player.lastTransactionSent.get() + 1, () -> {
-                player.isSneaking = false;
+                // From 1.16 to 1.19, this doesn't get set to false for whatever reason
+                if (player.getClientVersion().isOlderThan(ClientVersion.V_1_16) || player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_20)) {
+                    player.isSneaking = false;
+                }
+
                 player.lastOnGround = false;
                 player.onGround = false;
                 player.isInBed = false;
@@ -144,19 +157,21 @@ public class PacketPlayerRespawn extends PacketListenerAbstract {
 
                 if (!keepTrackedData) {
                     player.powderSnowFrozenTicks = 0;
-                    player.compensatedEntities.getSelf().hasGravity = true;
+                    player.compensatedEntities.self.hasGravity = true;
                     player.playerEntityHasGravity = true;
                 }
 
-                if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_19_4)) {
-                    if (!keepTrackedData) {
+                if (!keepTrackedData) {
+                    // 1.19.4 uses current sprinting, older versions use last sprinting
+                    if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_19_4)) {
                         player.isSprinting = false;
+                    } else {
+                        player.lastSprintingForSpeed = false;
                     }
-                } else {
-                    player.lastSprintingForSpeed = false;
                 }
 
                 player.checkManager.getPacketCheck(BadPacketsE.class).handleRespawn(); // Reminder ticks reset
+                player.checkManager.getPacketCheck(BadPacketsG.class).handleRespawn();
 
                 // compensate for immediate respawn gamerule
                 if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_15)) {
@@ -174,7 +189,7 @@ public class PacketPlayerRespawn extends PacketListenerAbstract {
                 player.dimensionType = respawn.getDimensionType();
 
                 player.compensatedEntities.serverPlayerVehicle = null; // All entities get removed on respawn
-                player.compensatedEntities.playerEntity = new PacketEntitySelf(player, player.compensatedEntities.playerEntity);
+                player.compensatedEntities.self = new PacketEntitySelf(player, player.compensatedEntities.self);
                 player.compensatedEntities.selfTrackedEntity = new TrackerData(0, 0, 0, 0, 0, EntityTypes.PLAYER, player.lastTransactionSent.get());
 
                 if (player.getClientVersion().isOlderThan(ClientVersion.V_1_14)) { // 1.14+ players send a packet for this, listen for it instead
@@ -193,7 +208,7 @@ public class PacketPlayerRespawn extends PacketListenerAbstract {
 
                 if (player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_16) && !this.hasFlag(respawn, KEEP_ATTRIBUTES)) {
                     // Reset attributes if not kept
-                    player.compensatedEntities.getSelf().resetAttributes();
+                    player.compensatedEntities.self.resetAttributes();
                     player.compensatedEntities.hasSprintingAttributeEnabled = false;
                 }
             });
